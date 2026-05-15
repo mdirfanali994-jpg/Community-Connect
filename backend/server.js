@@ -149,14 +149,14 @@ let customMapFilename = null;
 
 // Map Settings API
 app.get('/api/settings/map', (req, res) => {
-    res.json({ success: true, mapUrl: customMapFilename ? `http://localhost:5001/uploads/${customMapFilename}` : null });
+    res.json({ success: true, mapUrl: customMapFilename ? `https://community-connect-xsvo.onrender.com/uploads/${customMapFilename}` : null });
 });
 
 app.post('/api/settings/map', upload.single('mapImage'), (req, res) => {
     try {
         if (req.file) {
             customMapFilename = req.file.filename;
-            res.json({ success: true, mapUrl: `http://localhost:5001/uploads/${customMapFilename}` });
+            res.json({ success: true, mapUrl: `https://community-connect-xsvo.onrender.com/${customMapFilename}` });
         } else {
             res.status(400).json({ success: false, message: 'No image provided' });
         }
