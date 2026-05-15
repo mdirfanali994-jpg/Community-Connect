@@ -22,7 +22,7 @@ const AdminDashboard = () => {
 
   const fetchComplaints = async () => {
     try {
-      const res = await axios.get('http://localhost:5001/api/complaints');
+      const res = await axios.get('https://community-connect-xsvo.onrender.com/api/complaints');
       if (res.data.success) {
         setComplaints(res.data.complaints);
       }
@@ -35,7 +35,7 @@ const AdminDashboard = () => {
 
 const handleUpdate = async (id, data) => {
     try {
-      const res = await axios.put(`http://localhost:5001/api/complaints/${id}`, data);
+      const res = await axios.put(`https://community-connect-xsvo.onrender.com/api/complaints/${id}`, data);
       if (res.data.success) {
         fetchComplaints();
       }
@@ -50,7 +50,7 @@ const handleUpdate = async (id, data) => {
       return;
     }
     try {
-      const res = await axios.delete(`http://localhost:5001/api/complaints/${id}`);
+      const res = await axios.delete(`https://community-connect-xsvo.onrender.com/api/complaints/${id}`);
       if (res.data.success) {
         fetchComplaints();
       }
@@ -67,7 +67,7 @@ const handleUpdate = async (id, data) => {
     const formData = new FormData();
     formData.append('mapImage', mapImage);
     try {
-      const res = await axios.post('http://localhost:5001/api/settings/map', formData, {
+      const res = await axios.post('https://community-connect-xsvo.onrender.com/api/settings/map', formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
       if (res.data.success) {

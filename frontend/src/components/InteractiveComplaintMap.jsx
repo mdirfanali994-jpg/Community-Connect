@@ -244,7 +244,7 @@ const InteractiveComplaintMap = ({ complaintsData = null }) => {
                   {complaint.image && (
                     <div className="w-full h-32 bg-gray-100 dark:bg-gray-800 rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700 mb-3">
                       <img 
-                        src={`http://localhost:5001/uploads/${complaint.image}`} 
+                        src={`https://community-connect-xsvo.onrender.com/uploads/${complaint.image}`} 
                         alt="Complaint evidence" 
                         className="w-full h-full object-cover"
                         onError={(e) => {

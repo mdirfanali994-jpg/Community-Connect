@@ -11,7 +11,7 @@ const CommunityMap = () => {
   useEffect(() => {
     const fetchComplaints = async () => {
       try {
-        const res = await axios.get('http://localhost:5001/api/complaints');
+        const res = await axios.get('https://community-connect-xsvo.onrender.com/api/complaints');
         if (res.data.success) {
           // Filter to only include complaints that have a valid lat/lng location
           const validComplaints = res.data.complaints.filter(c => c.location && c.location.lat && c.location.lng);
