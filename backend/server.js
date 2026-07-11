@@ -83,9 +83,8 @@ app.post(
         try {
             const { text, userId, userName, flatNumber, location } = req.body;
 
-            const imageFile = req.files['image'] ? req.files['image'][0].filename : null;
-            const voiceFile = req.files['voice'] ? req.files['voice'][0].filename : null;
-
+            const imageFile = req.files?.image?.[0]?.filename || null;
+            const voiceFile = req.files?.voice?.[0]?.filename || null;
             const newComplaint = {
                 id: Date.now().toString(),
                 userId: parseInt(userId),
