@@ -101,6 +101,8 @@ app.post(
                 date: new Date().toISOString()
             };
 
+            console.log("NEW COMPLAINT:");
+            console.log(newComplaint);
             const saved = await Complaint.create(newComplaint);
             res.status(201).json({ success: true, complaint: saved.toObject() });
         } catch (error) {
