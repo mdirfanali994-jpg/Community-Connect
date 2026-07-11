@@ -1,7 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
-import { BarChart, Users, CheckCircle, Clock, AlertCircle, Trash2 } from 'lucide-react';
+import { BarChart, CheckCircle, Clock, Trash2 } from 'lucide-react';
+import NotificationBell from '../components/NotificationBell';
+import { connectAsRole } from '../services/socket';
+
+
 
 const AdminDashboard = () => {
   const [complaints, setComplaints] = useState([]);
@@ -9,16 +13,11 @@ const AdminDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [mapImage, setMapImage] = useState(null);
   const [uploadingMap, setUploadingMap] = useState(false);
-  const navigate = useNavigate();
 
-  useEffect(() => {
-    const userData = localStorage.getItem('user');
-    if (!userData || JSON.parse(userData).role !== 'admin') {
-      navigate('/login');
-      return;
-    }
-    fetchComplaints();
-  }, [navigate]);
+  const [notifications, setNotifications] = useState([]);
+
+
+  const navigate = useNavigate();
 
   const fetchComplaints = async () => {
     try {
@@ -32,6 +31,98 @@ const AdminDashboard = () => {
       setLoading(false);
     }
   };
+
+  const fetchNotifications = async () => {
+    try {
+      const res = await axios.get(
+        'https://community-connect-backend-wqwc.onrender.com/api/notifications?targetRole=admin'
+      );
+      if (res.data.success) {
+        setNotifications(res.data.notifications || []);
+      }
+    } catch (error) {
+      console.error('Error fetching notifications', error);
+    }
+  };
+
+  const unreadCount = notifications.reduce((acc, n) => acc + (n?.read ? 0 : 1), 0);
+
+  const handleMarkRead = async (id) => {
+    if (!id) return;
+    try {
+      const res = await axios.put(
+        `https://community-connect-backend-wqwc.onrender.com/api/notifications/${id}/read`
+      );
+      if (res.data.success) {
+        setNotifications((prev) => prev.map((n) => (n?._id === id || n?.id === id ? res.data.notification : n)));
+      }
+    } catch (error) {
+      console.error('Error marking notification read', error);
+    }
+  };
+
+  const handleMarkAllRead = async () => {
+    try {
+      const res = await axios.put(
+        'https://community-connect-backend-wqwc.onrender.com/api/notifications/read-all?targetRole=admin'
+      );
+      if (res.data.success) {
+        setNotifications((prev) => prev.map((n) => (n.read ? n : { ...n, read: true, readAt: new Date().toISOString() })));
+      }
+    } catch (error) {
+      console.error('Error marking all notifications read', error);
+    }
+  };
+
+  useEffect(() => {
+    const userData = localStorage.getItem('user');
+    if (!userData || JSON.parse(userData).role !== 'admin') {
+      navigate('/login');
+      return;
+    }
+
+    // Defer async calls to avoid strict lint complaints and potential render thrash.
+    const run = async () => {
+      try {
+        await Promise.all([fetchComplaints(), fetchNotifications()]);
+      } catch {
+        // ignore; errors already logged in fetch functions
+      }
+
+    };
+
+    run();
+
+    const socket = connectAsRole('admin');
+
+    console.log('🔌 [frontend] connecting as admin via socket');
+    console.log('🔌 [frontend] socket connected?', socket.connected);
+
+    socket.on('connect', () => {
+      console.log('✅ [frontend] socket connected:', socket.id);
+    });
+
+    socket.on('notification:new', (notification) => {
+      console.log('📩 [frontend] notification:new received:', {
+        notificationId: notification?._id || notification?.id,
+        targetRole: notification?.targetRole
+      });
+
+      setNotifications((prev) => {
+        const key = notification?._id || notification?.id;
+        if (!key) return [notification, ...prev];
+        if (prev.some((n) => (n?._id || n?.id) === key)) return prev;
+        return [notification, ...prev];
+      });
+    });
+
+
+    return () => {
+      socket.off('notification:new');
+    };
+  }, [navigate]);
+
+
 
 const handleUpdate = async (id, data) => {
     try {
@@ -108,13 +199,25 @@ const handleUpdate = async (id, data) => {
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white transition-colors">Command Center</h1>
           <p className="text-gray-500 dark:text-gray-400 mt-1 transition-colors">Manage community complaints and assignments</p>
         </div>
-        <button 
-          onClick={() => { localStorage.removeItem('user'); navigate('/login'); }}
-          className="relative z-10 text-sm font-medium text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 bg-red-50 dark:bg-red-950/30 hover:bg-red-100 dark:hover:bg-red-900/40 border border-red-100 dark:border-red-900/50 px-4 py-2 rounded-xl transition-all"
-        >
-          Logout
-        </button>
+
+        <div className="relative z-10 flex items-center gap-3">
+          <NotificationBell
+            targetRoleLabel="Admin"
+            notifications={notifications}
+            unreadCount={unreadCount}
+            onMarkRead={handleMarkRead}
+            onMarkAllRead={handleMarkAllRead}
+          />
+
+          <button 
+            onClick={() => { localStorage.removeItem('user'); navigate('/login'); }}
+            className="text-sm font-medium text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 bg-red-50 dark:bg-red-950/30 hover:bg-red-100 dark:hover:bg-red-900/40 border border-red-100 dark:border-red-900/50 px-4 py-2 rounded-xl transition-all"
+          >
+            Logout
+          </button>
+        </div>
       </div>
+
 
       {/* Analytics Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">

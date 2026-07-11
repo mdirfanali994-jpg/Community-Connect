@@ -1,10 +1,19 @@
 const express = require('express');
+const http = require('http');
+const { Server } = require('socket.io');
 const cors = require('cors');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 
 const app = express();
+const server = http.createServer(app);
+const io = new Server(server, {
+  cors: {
+    origin: "*",
+    methods: ["GET", "POST"]
+  }
+});
 app.use(cors());
 app.use(express.json());
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
@@ -15,6 +24,8 @@ if (!fs.existsSync(path.join(__dirname, 'uploads'))) {
 }
 
 // Storage for multer
+
+
 const storage = multer.diskStorage({
     destination: function (req, file, cb) {
         cb(null, 'uploads/');
@@ -37,7 +48,15 @@ const mongoose = require('mongoose');
 const dotenv = require('dotenv');
 const Complaint = require('./models/Complaint');
 
+const notificationRoutes = require('./routes/notificationRoutes');
+const { createComplaintSubmittedNotification } = require('./services/notificationService');
+
 dotenv.config();
+
+// Notification routes (new)
+app.use(notificationRoutes);
+
+
 
 const MONGODB_URI = process.env.MONGODB_URI;
 let mongoConnected = false;
@@ -104,12 +123,36 @@ app.post(
             console.log("NEW COMPLAINT:");
             console.log(newComplaint);
             const saved = await Complaint.create(newComplaint);
+
+            // Create a role-based notification for Admins and emit via Socket.IO (real-time).
+            // Note: we keep complaint REST behavior unchanged.
+            try {
+                const notification = await createComplaintSubmittedNotification({ complaint: saved.toObject ? saved.toObject() : saved });
+                console.log('✅ [notification] created:', {
+                    notificationId: notification?._id || notification?.id,
+                    targetRole: notification?.targetRole
+                });
+                console.log("📤 [socket] emitting notification:new to room 'admin'");
+                io.to('admin').emit('notification:new', notification);
+            } catch (notifyErr) {
+                console.error('Notification emit error:', notifyErr);
+            }
+
+
             res.status(201).json({ success: true, complaint: saved.toObject() });
         } catch (error) {
-            console.error(error);
-            res.status(500).json({ success: false, message: 'Server error' });
+             console.error("FULL ERROR:");
+             console.error(error);
+
+
+             res.status(500).json({
+             success: false,
+             message: error.message,
+             stack: error.stack
+    });
+}
         }
-    }
+    
 );
 
 // Get Complaints API
@@ -205,8 +248,26 @@ app.post('/api/settings/map', upload.single('mapImage'), (req, res) => {
     }
 });
 
+io.on("connection", (socket) => {
+  console.log("✅ User connected:", socket.id);
+
+  // Role-based room join for future scalable notifications
+  socket.on('joinRole', (payload = {}) => {
+    const { role } = payload;
+    console.log('🔌 [socket] joinRole received:', payload);
+    if (!role) return;
+    socket.join(role);
+    console.log(`✅ [socket] socket ${socket.id} joined room '${role}'`);
+  });
+
+
+  socket.on("disconnect", () => {
+    console.log("❌ User disconnected:", socket.id);
+  });
+});
+
 const PORT = 5001;
-app.listen(PORT, () => {
+server.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
 });
 
