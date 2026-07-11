@@ -16,7 +16,7 @@ const Login = () => {
     setLoading(true);
 
     try {
-      const res = await axios.post('https://community-connect-xsvo.onrender.com/api/login', { email, password });
+      const res = await axios.post('https://community-connect-backend-wqwc.onrender.com/api/login', { email, password });
       if (res.data.success) {
         localStorage.setItem('user', JSON.stringify(res.data.user));
         

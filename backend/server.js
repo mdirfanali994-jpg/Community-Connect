@@ -182,7 +182,7 @@ app.get('/api/settings/map', (req, res) => {
     res.json({
         success: true,
         mapUrl: customMapFilename
-            ? `https://community-connect-xsvo.onrender.com/uploads/${customMapFilename}`
+            ? `https://community-connect-backend-wqwc.onrender.com/uploads/${customMapFilename}`
             : null
     });
 });
@@ -193,7 +193,7 @@ app.post('/api/settings/map', upload.single('mapImage'), (req, res) => {
             customMapFilename = req.file.filename;
             res.json({
                 success: true,
-                mapUrl: `https://community-connect-xsvo.onrender.com/${customMapFilename}`
+                mapUrl: `https://community-connect-backend-wqwc.onrender.com/${customMapFilename}`
             });
         } else {
             res.status(400).json({ success: false, message: 'No image provided' });

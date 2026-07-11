@@ -21,7 +21,7 @@ const WorkerDashboard = () => {
 
   const fetchComplaints = async () => {
     try {
-      const res = await axios.get('https://community-connect-xsvo.onrender.com/api/complaints?role=worker');
+      const res = await axios.get('https://community-connect-backend-wqwc.onrender.com/api/complaints?role=worker');
       if (res.data.success) {
         setComplaints(res.data.complaints);
       }
@@ -34,7 +34,7 @@ const WorkerDashboard = () => {
 
   const handleStatusUpdate = async (id, status) => {
     try {
-      const res = await axios.put(`https://community-connect-xsvo.onrender.com/api/complaints/${id}`, { status });
+      const res = await axios.put(`https://community-connect-backend-wqwc.onrender.com/api/complaints/${id}`, { status });
       if (res.data.success) {
         fetchComplaints();
       }
