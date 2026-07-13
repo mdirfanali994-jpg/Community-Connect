@@ -15,7 +15,7 @@ const AdminDashboard = () => {
   const [uploadingMap, setUploadingMap] = useState(false);
 
   const [notifications, setNotifications] = useState([]);
-
+  const [workers, setWorkers] = useState([]);
 
   const navigate = useNavigate();
 
@@ -42,6 +42,17 @@ const AdminDashboard = () => {
       }
     } catch (error) {
       console.error('Error fetching notifications', error);
+    }
+  };
+
+  const fetchWorkers = async () => {
+    try {
+      const res = await axios.get('https://community-connect-backend-wqwc.onrender.com/api/workers');
+      if (res.data.success) {
+        setWorkers(res.data.workers || []);
+      }
+    } catch (error) {
+      console.error('Error fetching workers', error);
     }
   };
 
@@ -84,7 +95,7 @@ const AdminDashboard = () => {
     // Defer async calls to avoid strict lint complaints and potential render thrash.
     const run = async () => {
       try {
-        await Promise.all([fetchComplaints(), fetchNotifications()]);
+        await Promise.all([fetchComplaints(), fetchNotifications(), fetchWorkers()]);
       } catch {
         // ignore; errors already logged in fetch functions
       }
@@ -133,6 +144,30 @@ const handleUpdate = async (id, data) => {
     } catch (error) {
       console.error('Error updating complaint', error);
       alert('Failed to update complaint');
+    }
+  };
+
+  const handleAssignWorker = async (complaintId, workerId) => {
+    // workerId is required by the new route; fallback to legacy update if missing
+    if (!workerId) {
+      return handleUpdate(complaintId, { assignedWorker: null, status: 'Submitted' });
+    }
+
+    try {
+      const res = await axios.put(
+        `https://community-connect-backend-wqwc.onrender.com/api/complaints/${complaintId}/assign`,
+        {
+          workerId,
+          assignedBy: JSON.parse(localStorage.getItem('user') || '{}')?.name || 'Admin',
+          assignmentStatus: 'Assigned'
+        }
+      );
+      if (res.data.success) {
+        fetchComplaints();
+      }
+    } catch (error) {
+      console.error('Error assigning worker', error);
+      alert('Failed to assign worker');
     }
   };
 
@@ -312,7 +347,8 @@ const handleUpdate = async (id, data) => {
                       >
                         <option value="Submitted">Submitted</option>
                         <option value="Verified">Verified</option>
-                        <option value="Assigned to Worker">Assigned</option>
+                        <option value="Assigned">Assigned</option>
+                        <option value="Assigned to Worker">Assigned to Worker</option>
                         <option value="Work In Progress">WIP</option>
                         <option value="Completed">Completed</option>
                       </select>
@@ -320,12 +356,15 @@ const handleUpdate = async (id, data) => {
 <td className="px-6 py-4 space-y-2">
                       <select
                         className="w-full bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-700 text-xs text-gray-700 dark:text-gray-300 rounded-lg px-2 py-1.5 outline-none focus:ring-1 focus:ring-primary transition-colors"
-                        value={c.assignedWorker || ''}
-                        onChange={(e) => handleUpdate(c.id, { assignedWorker: e.target.value, status: 'Assigned to Worker' })}
+                        value={c.assignment?.workerId || '' }
+                        onChange={(e) => handleAssignWorker(c.id, e.target.value)}
                       >
                         <option value="">Unassigned...</option>
-                        <option value="Bob Builder">Bob Builder</option>
-                        <option value="Alice Electrician">Alice Electrician</option>
+                        {workers.map((w) => (
+                          <option key={w._id || w.id} value={w._id || w.id}>
+                            {w.name}
+                          </option>
+                        ))}
                       </select>
                       <input 
                         type="text" 

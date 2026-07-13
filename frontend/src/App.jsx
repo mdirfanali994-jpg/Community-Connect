@@ -8,6 +8,9 @@ import WorkerDashboard from './pages/WorkerDashboard';
 import PublicBoard from './pages/PublicBoard';
 import CommunityMap from './pages/CommunityMap';
 import ErrorBoundary from './ErrorBoundary';
+import OnboardingLanding from './pages/OnboardingLanding';
+import CreateCommunity from './pages/CreateCommunity';
+import JoinCommunity from './pages/JoinCommunity';
 
 function App() {
   const [isDark, setIsDark] = useState(() => {
@@ -64,7 +67,9 @@ function App() {
           <div className="relative z-10">
             <ErrorBoundary>
               <Routes>
-                <Route path="/" element={<Navigate to="/login" />} />
+                <Route path="/" element={<OnboardingLanding />} />
+                <Route path="/onboarding/create-community" element={<CreateCommunity />} />
+                <Route path="/onboarding/join-community" element={<JoinCommunity />} />
                 <Route path="/login" element={<Login />} />
                 <Route path="/user/dashboard" element={<UserDashboard />} />
                 <Route path="/admin/dashboard" element={<AdminDashboard />} />
