@@ -75,7 +75,8 @@ app.use('/api/onboarding', onboardingRoutes);
 
 
 // Admin resident request approval routes (new)
-app.use(adminResidentRequestsRoutes);
+// Keep all admin approval REST endpoints under /api to match frontend calls.
+app.use('/api', adminResidentRequestsRoutes);
 
 const MONGODB_URI = process.env.MONGODB_URI;
 let mongoConnected = false;

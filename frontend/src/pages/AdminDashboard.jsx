@@ -4,6 +4,7 @@ import axios from 'axios';
 import { BarChart, CheckCircle, Clock, Trash2 } from 'lucide-react';
 import NotificationBell from '../components/NotificationBell';
 import { connectAsRole } from '../services/socket';
+import { API_BASE_URL } from '../config/api';
 
 
 
@@ -17,11 +18,46 @@ const AdminDashboard = () => {
   const [notifications, setNotifications] = useState([]);
   const [workers, setWorkers] = useState([]);
 
+  // Pending resident requests (Spirit 3)
+  const [pendingResidents, setPendingResidents] = useState([]);
+  const [pendingResidentsLoading, setPendingResidentsLoading] = useState(false);
+  const [pendingResidentsError, setPendingResidentsError] = useState('');
+  const [pendingResidentsActionBusy, setPendingResidentsActionBusy] = useState(null);
+
+  const [adminFlashMessage, setAdminFlashMessage] = useState('');
+
   const navigate = useNavigate();
+
+  const getAdminHeaders = () => {
+    const raw = localStorage.getItem('user');
+    const user = raw ? JSON.parse(raw) : null;
+
+    const xAdminId = user?.id || user?._id;
+    const xCommunityId = user?.communityId || user?.communityID || user?.community_id;
+
+    if (!xAdminId || !xCommunityId) {
+      return { headers: null, error: 'Missing admin identity. Please login again.' };
+    }
+
+    return {
+      headers: {
+        'x-admin-id': String(xAdminId),
+        'x-community-id': String(xCommunityId),
+      },
+      error: null,
+    };
+  };
+
+  const formatRegistrationDate = (req) => {
+    const v = req?.registrationDate ?? req?.createdAt ?? req?.updatedAt;
+    if (!v) return 'N/A';
+    const d = new Date(v);
+    return Number.isNaN(d.getTime()) ? 'N/A' : d.toLocaleDateString();
+  };
 
   const fetchComplaints = async () => {
     try {
-      const res = await axios.get('https://community-connect-backend-wqwc.onrender.com/api/complaints');
+      const res = await axios.get(`${API_BASE_URL}/complaints`);
       if (res.data.success) {
         setComplaints(res.data.complaints);
       }
@@ -35,7 +71,7 @@ const AdminDashboard = () => {
   const fetchNotifications = async () => {
     try {
       const res = await axios.get(
-        'https://community-connect-backend-wqwc.onrender.com/api/notifications?targetRole=admin'
+        `${API_BASE_URL}/notifications?targetRole=admin`
       );
       if (res.data.success) {
         setNotifications(res.data.notifications || []);
@@ -47,12 +83,40 @@ const AdminDashboard = () => {
 
   const fetchWorkers = async () => {
     try {
-      const res = await axios.get('https://community-connect-backend-wqwc.onrender.com/api/workers');
+      const res = await axios.get(`${API_BASE_URL}/workers`);
       if (res.data.success) {
         setWorkers(res.data.workers || []);
       }
     } catch (error) {
       console.error('Error fetching workers', error);
+    }
+  };
+
+  const fetchPendingResidentRequests = async () => {
+    const { headers, error } = getAdminHeaders();
+    if (error) {
+      setPendingResidentsError(error);
+      setPendingResidents([]);
+      return;
+    }
+
+    setPendingResidentsLoading(true);
+    setPendingResidentsError('');
+    try {
+      const res = await axios.get(`${API_BASE_URL}/admin/resident-requests`, { headers });
+
+      if (res.data?.success) {
+        setPendingResidents(res.data.requests || []);
+      } else {
+        setPendingResidents([]);
+        setPendingResidentsError(res.data?.message || 'Failed to fetch pending requests');
+      }
+    } catch (e) {
+      console.error('fetchPendingResidentRequests error:', e);
+      setPendingResidents([]);
+      setPendingResidentsError(e?.response?.data?.message || 'Failed to fetch pending requests');
+    } finally {
+      setPendingResidentsLoading(false);
     }
   };
 
@@ -92,14 +156,19 @@ const AdminDashboard = () => {
       return;
     }
 
-    // Defer async calls to avoid strict lint complaints and potential render thrash.
+    // Defer async calls and keep setState calls inside the async chain
+    // to avoid react-hooks/set-state-in-effect lint errors.
     const run = async () => {
       try {
-        await Promise.all([fetchComplaints(), fetchNotifications(), fetchWorkers()]);
+        await Promise.all([
+          fetchComplaints(),
+          fetchNotifications(),
+          fetchWorkers(),
+          fetchPendingResidentRequests(),
+        ]);
       } catch {
         // ignore; errors already logged in fetch functions
       }
-
     };
 
     run();
@@ -127,17 +196,45 @@ const AdminDashboard = () => {
       });
     });
 
-
     return () => {
       socket.off('notification:new');
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [navigate]);
 
 
 
-const handleUpdate = async (id, data) => {
+  const approveRejectResident = async (requestId, action) => {
+    const { headers, error } = getAdminHeaders();
+    if (error) {
+      setPendingResidentsError(error);
+      return;
+    }
+
+    setAdminFlashMessage('');
+    setPendingResidentsActionBusy(requestId);
+
     try {
-      const res = await axios.put(`https://community-connect-backend-wqwc.onrender.com/api/complaints/${id}`, data);
+      const endpoint = `${API_BASE_URL}/admin/resident-requests/${requestId}/${action}`;
+      const res = await axios.put(endpoint, {}, { headers });
+
+      if (res.data?.success) {
+        setAdminFlashMessage(action === 'approve' ? 'Resident approved successfully.' : 'Resident rejected successfully.');
+        await fetchPendingResidentRequests();
+      } else {
+        setPendingResidentsError(res.data?.message || 'Action failed');
+      }
+    } catch (e) {
+      console.error(`approveRejectResident (${action}) error:`, e);
+      setPendingResidentsError(e?.response?.data?.message || 'Action failed');
+    } finally {
+      setPendingResidentsActionBusy(null);
+    }
+  };
+
+  const handleUpdate = async (id, data) => {
+    try {
+      const res = await axios.put(`${API_BASE_URL}/complaints/${id}`, data);
       if (res.data.success) {
         fetchComplaints();
       }
@@ -392,7 +489,100 @@ const handleUpdate = async (id, data) => {
           </table>
         </div>
       </div>
-      
+
+      {/* Pending Resident Requests (Spirit 3) */}
+      <div className="bg-white/80 dark:bg-gray-900/60 backdrop-blur-xl rounded-3xl shadow-sm border border-gray-200 dark:border-gray-800 overflow-hidden transition-colors">
+        <div className="p-6 border-b border-gray-200 dark:border-gray-800 transition-colors flex flex-col sm:flex-row justify-between items-center bg-gray-50/50 dark:bg-gray-900/40">
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white transition-colors mb-3 sm:mb-0">
+            Pending Resident Requests
+          </h2>
+
+          {adminFlashMessage ? (
+            <div className="text-sm font-medium text-green-700 dark:text-green-300 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 px-4 py-2 rounded-xl transition-colors">
+              {adminFlashMessage}
+            </div>
+          ) : null}
+        </div>
+
+        <div className="p-6">
+          {pendingResidentsLoading ? (
+            <div className="text-center py-10 text-gray-500">Loading pending requests...</div>
+          ) : pendingResidentsError ? (
+            <div className="p-3 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 rounded-xl text-sm">
+              {pendingResidentsError}
+            </div>
+          ) : pendingResidents.length === 0 ? (
+            <div className="text-center py-12 text-gray-500">No pending resident requests.</div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-sm text-gray-700 dark:text-gray-300 transition-colors">
+                <thead className="text-xs text-gray-500 dark:text-gray-400 uppercase bg-gray-50 dark:bg-gray-950/50 border-b border-gray-200 dark:border-gray-800 tracking-wider transition-colors">
+                  <tr>
+                    <th className="px-4 py-3 font-medium">Full Name</th>
+                    <th className="px-4 py-3 font-medium">Email</th>
+                    <th className="px-4 py-3 font-medium">Phone</th>
+                    <th className="px-4 py-3 font-medium">Block</th>
+                    <th className="px-4 py-3 font-medium">Flat Number</th>
+                    <th className="px-4 py-3 font-medium">Registration Date</th>
+                    <th className="px-4 py-3 font-medium">Status</th>
+                    <th className="px-4 py-3 font-medium">Actions</th>
+                  </tr>
+                </thead>
+
+                <tbody className="divide-y divide-gray-100 dark:divide-gray-800/50 transition-colors">
+                  {pendingResidents.map((r) => {
+                    const requestId = r.requestId || r._id || r.id;
+                    return (
+                      <tr key={String(requestId)}>
+                        <td className="px-4 py-3 font-medium text-gray-900 dark:text-gray-200 transition-colors">
+                          {r.fullName}
+                        </td>
+                        <td className="px-4 py-3 text-gray-700 dark:text-gray-300 transition-colors">
+                          {r.email}
+                        </td>
+                        <td className="px-4 py-3 text-gray-700 dark:text-gray-300 transition-colors">
+                          {r.phone}
+                        </td>
+                        <td className="px-4 py-3 text-gray-700 dark:text-gray-300 transition-colors">
+                          {r.block}
+                        </td>
+                        <td className="px-4 py-3 text-gray-700 dark:text-gray-300 transition-colors">
+                          {r.flatNumber}
+                        </td>
+                        <td className="px-4 py-3 text-gray-700 dark:text-gray-300 transition-colors">
+                          {formatRegistrationDate(r)}
+                        </td>
+                        <td className="px-4 py-3 text-gray-700 dark:text-gray-300 transition-colors">
+                          {r.status}
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex flex-col sm:flex-row gap-2">
+                            <button
+                              onClick={() => approveRejectResident(requestId, 'approve')}
+                              disabled={pendingResidentsActionBusy === requestId}
+                              className="px-3 py-2 text-xs font-semibold bg-green-50 dark:bg-green-950/30 hover:bg-green-100 dark:hover:bg-green-900/40 text-green-700 dark:text-green-300 border border-green-200 dark:border-green-800 rounded-xl transition-all disabled:opacity-60"
+                            >
+                              Approve
+                            </button>
+                            <button
+                              onClick={() => approveRejectResident(requestId, 'reject')}
+                              disabled={pendingResidentsActionBusy === requestId}
+                              className="px-3 py-2 text-xs font-semibold bg-red-50 dark:bg-red-950/30 hover:bg-red-100 dark:hover:bg-red-900/40 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-800 rounded-xl transition-all disabled:opacity-60"
+                            >
+                              Reject
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      </div>
+
       {/* System Configuration */}
       <div className="bg-white/80 dark:bg-gray-900/60 backdrop-blur-xl rounded-3xl shadow-sm border border-gray-200 dark:border-gray-800 overflow-hidden transition-colors p-6">
         <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 transition-colors">System Configuration</h2>
@@ -416,6 +606,7 @@ const handleUpdate = async (id, data) => {
           </div>
         </form>
       </div>
+
 
     </div>
   );
