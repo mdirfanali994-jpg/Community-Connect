@@ -21,9 +21,26 @@ const WorkerDashboard = () => {
 
   const fetchComplaints = async () => {
     try {
-      const res = await axios.get('https://community-connect-backend-wqwc.onrender.com/api/complaints?role=worker');
-      if (res.data.success) {
-        setComplaints(res.data.complaints);
+      const parsedUser = JSON.parse(localStorage.getItem('user') || '{}');
+      const workerId = parsedUser?.workerId || parsedUser?._id || parsedUser?.id || null;
+
+      // New, society-scoped assignment endpoint (preferred)
+      if (workerId) {
+        const res = await axios.get(
+          `https://community-connect-backend-wqwc.onrender.com/api/workers/${workerId}/complaints`
+        );
+        if (res.data.success) {
+          setComplaints(res.data.complaints);
+          return;
+        }
+      }
+
+      // Backward compatible fallback
+      const fallbackRes = await axios.get(
+        'https://community-connect-backend-wqwc.onrender.com/api/complaints?role=worker'
+      );
+      if (fallbackRes.data.success) {
+        setComplaints(fallbackRes.data.complaints);
       }
     } catch (error) {
       console.error('Error fetching complaints', error);
@@ -34,7 +51,10 @@ const WorkerDashboard = () => {
 
   const handleStatusUpdate = async (id, status) => {
     try {
-      const res = await axios.put(`https://community-connect-backend-wqwc.onrender.com/api/complaints/${id}`, { status });
+      const res = await axios.put(
+        `https://community-connect-backend-wqwc.onrender.com/api/complaints/${id}`,
+        { status }
+      );
       if (res.data.success) {
         fetchComplaints();
       }
@@ -103,8 +123,8 @@ const WorkerDashboard = () => {
               )}
 
               <div className="flex space-x-3 mt-auto pt-5 border-t border-gray-100 dark:border-gray-800 transition-colors">
-                {c.status !== 'Work In Progress' && (
-                  <button 
+                {c.status !== 'Work In Progress' && c.status !== 'Assigned' && (
+                  <button
                     onClick={() => handleStatusUpdate(c.id, 'Work In Progress')}
                     className="flex-1 bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 border border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600 py-2.5 rounded-xl text-sm font-medium transition-all"
                   >

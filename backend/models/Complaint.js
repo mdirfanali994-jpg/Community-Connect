@@ -20,8 +20,24 @@ const complaintSchema = new mongoose.Schema(
     assignedWorker: { type: String, default: null },
     expectedCompletionDate: { type: String, default: null },
     adminRemarks: { type: String, default: '' },
+
+    // Optional society scoping (backward compatible)
+    societyId: { type: String, default: null },
+
+    // Optional assignment metadata (backward compatible)
+    assignment: {
+      workerId: { type: String, default: null, index: true },
+      assignedBy: { type: String, default: null },
+      assignedAt: { type: String, default: null },
+      assignmentStatus: { type: String, default: null }
+    },
+
+    // Backward compatible field used by existing UI/workflows
+    assignedWorker: { type: String, default: null },
+
     date: { type: String, required: true }
   },
+
   {
     versionKey: false
   }
