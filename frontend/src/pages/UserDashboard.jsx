@@ -50,7 +50,7 @@ const UserDashboard = () => {
       return;
     }
     const parsedUser = JSON.parse(userData);
-    if (parsedUser.role !== 'user') {
+    if (parsedUser.role !== 'resident') {
       navigate('/login');
       return;
     }
@@ -101,7 +101,7 @@ const UserDashboard = () => {
 
   const fetchComplaints = async (userId) => {
     try {
-      const res = await axios.get(`https://community-connect-backend-wqwc.onrender.com/api/complaints?role=user&userId=${userId}`);
+      const res = await axios.get("https://community-connect-backend-wqwc.onrender.com/api/complaints?role=resident&userId=${userId})");
       if (res.data.success) {
         setComplaints(res.data.complaints);
       }
