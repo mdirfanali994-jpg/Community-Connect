@@ -1,14 +1,15 @@
 const getEnv = (key) => {
-  // Vite env vars are exposed via import.meta.env
   const v = import.meta?.env?.[key];
   return v === undefined ? undefined : v;
-};
+}
 
 export const API_BASE_URL =
-  getEnv('VITE_API_BASE_URL') || 'http://localhost:5001/api';
+  getEnv('VITE_API_BASE_URL') ||
+  'https://community-connect-backend-wqwc.onrender.com/api';
 
 export const SOCKET_URL =
-  getEnv('VITE_SOCKET_URL') || 'http://localhost:5001';
+  getEnv('VITE_SOCKET_URL') ||
+  'https://community-connect-backend-wqwc.onrender.com';
 
 export const apiUrl = (path = '') => {
   if (!path) return API_BASE_URL;
