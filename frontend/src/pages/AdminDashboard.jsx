@@ -57,7 +57,12 @@ const AdminDashboard = () => {
 
   const fetchComplaints = async () => {
     try {
-      const res = await axios.get(`${API_BASE_URL}/complaints`);
+      const { headers, error } = getAdminHeaders();
+      if (error || !headers) {
+        throw new Error(error || 'Missing admin identity.');
+      }
+
+      const res = await axios.get(`${API_BASE_URL}/complaints`, { headers });
       if (res.data.success) {
         setComplaints(res.data.complaints);
       }
@@ -70,8 +75,14 @@ const AdminDashboard = () => {
 
   const fetchNotifications = async () => {
     try {
+      const { headers, error } = getAdminHeaders();
+      if (error || !headers) {
+        throw new Error(error || 'Missing admin identity.');
+      }
+
       const res = await axios.get(
-        `${API_BASE_URL}/notifications?targetRole=admin`
+        `${API_BASE_URL}/notifications?targetRole=admin`,
+        { headers }
       );
       if (res.data.success) {
         setNotifications(res.data.notifications || []);
@@ -83,7 +94,13 @@ const AdminDashboard = () => {
 
   const fetchWorkers = async () => {
     try {
-      const res = await axios.get(`${API_BASE_URL}/workers`);
+      const { headers, error } = getAdminHeaders();
+      if (error || !headers) {
+        throw new Error(error || 'Missing admin identity.');
+      }
+
+      // Use communityId scoping for worker list
+      const res = await axios.get(`${API_BASE_URL}/workers`, { headers });
       if (res.data.success) {
         setWorkers(res.data.workers || []);
       }
@@ -125,8 +142,12 @@ const AdminDashboard = () => {
   const handleMarkRead = async (id) => {
     if (!id) return;
     try {
+      const { headers, error } = getAdminHeaders();
+      if (error || !headers) throw new Error(error || 'Missing admin identity.');
       const res = await axios.put(
-        `https://community-connect-backend-wqwc.onrender.com/api/notifications/${id}/read`
+        `https://community-connect-backend-wqwc.onrender.com/api/notifications/${id}/read`,
+        {},
+        { headers }
       );
       if (res.data.success) {
         setNotifications((prev) => prev.map((n) => (n?._id === id || n?.id === id ? res.data.notification : n)));
@@ -138,8 +159,12 @@ const AdminDashboard = () => {
 
   const handleMarkAllRead = async () => {
     try {
+      const { headers, error } = getAdminHeaders();
+      if (error || !headers) throw new Error(error || 'Missing admin identity.');
       const res = await axios.put(
-        'https://community-connect-backend-wqwc.onrender.com/api/notifications/read-all?targetRole=admin'
+        `https://community-connect-backend-wqwc.onrender.com/api/notifications/read-all?targetRole=admin`,
+        {},
+        { headers }
       );
       if (res.data.success) {
         setNotifications((prev) => prev.map((n) => (n.read ? n : { ...n, read: true, readAt: new Date().toISOString() })));
@@ -173,7 +198,8 @@ const AdminDashboard = () => {
 
     run();
 
-    const socket = connectAsRole('admin');
+    const socket = connectAsRole('admin', JSON.parse(localStorage.getItem('user') || '{}')?.communityId);
+
 
     console.log('🔌 [frontend] connecting as admin via socket');
     console.log('🔌 [frontend] socket connected?', socket.connected);
@@ -234,7 +260,9 @@ const AdminDashboard = () => {
 
   const handleUpdate = async (id, data) => {
     try {
-      const res = await axios.put(`${API_BASE_URL}/complaints/${id}`, data);
+      const { headers, error } = getAdminHeaders();
+      if (error || !headers) throw new Error(error || 'Missing admin identity.');
+      const res = await axios.put(`${API_BASE_URL}/complaints/${id}`, data, { headers });
       if (res.data.success) {
         fetchComplaints();
       }
@@ -251,13 +279,16 @@ const AdminDashboard = () => {
     }
 
     try {
+      const { headers, error } = getAdminHeaders();
+      if (error || !headers) throw new Error(error || 'Missing admin identity.');
       const res = await axios.put(
         `https://community-connect-backend-wqwc.onrender.com/api/complaints/${complaintId}/assign`,
         {
           workerId,
           assignedBy: JSON.parse(localStorage.getItem('user') || '{}')?.name || 'Admin',
           assignmentStatus: 'Assigned'
-        }
+        },
+        { headers }
       );
       if (res.data.success) {
         fetchComplaints();
@@ -273,7 +304,9 @@ const AdminDashboard = () => {
       return;
     }
     try {
-      const res = await axios.delete(`https://community-connect-backend-wqwc.onrender.com/api/complaints/${id}`);
+      const { headers, error } = getAdminHeaders();
+      if (error || !headers) throw new Error(error || 'Missing admin identity.');
+      const res = await axios.delete(`https://community-connect-backend-wqwc.onrender.com/api/complaints/${id}`, { headers });
       if (res.data.success) {
         fetchComplaints();
       }
@@ -290,8 +323,10 @@ const AdminDashboard = () => {
     const formData = new FormData();
     formData.append('mapImage', mapImage);
     try {
+      const { headers, error } = getAdminHeaders();
+      if (error || !headers) throw new Error(error || 'Missing admin identity.');
       const res = await axios.post('https://community-connect-backend-wqwc.onrender.com/api/settings/map', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' }
+        headers: { ...headers, 'Content-Type': 'multipart/form-data' }
       });
       if (res.data.success) {
         alert('Community Map uploaded successfully!');
@@ -328,8 +363,9 @@ const AdminDashboard = () => {
       <div className="flex justify-between items-center bg-white/80 dark:bg-gray-900/60 backdrop-blur-xl p-6 rounded-3xl shadow-sm border border-gray-200 dark:border-gray-800 relative overflow-hidden group transition-colors">
         <div className="absolute top-0 left-0 w-32 h-32 bg-primary/10 rounded-full blur-[40px] group-hover:bg-primary/20 transition-all"></div>
         <div className="relative z-10">
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white transition-colors">Command Center</h1>
-          <p className="text-gray-500 dark:text-gray-400 mt-1 transition-colors">Manage community complaints and assignments</p>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white transition-colors">Admin Dashboard - {JSON.parse(localStorage.getItem('user') || '{}')?.communityName || 'Your Society'}</h1>
+          <p className="text-gray-500 dark:text-gray-400 mt-1 transition-colors">Welcome to {JSON.parse(localStorage.getItem('user') || '{}')?.communityName || 'Your Society'}</p>
+
         </div>
 
         <div className="relative z-10 flex items-center gap-3">

@@ -15,6 +15,7 @@ const WorkerDashboard = () => {
       navigate('/login');
       return;
     }
+
     setUser(JSON.parse(userData));
     fetchComplaints();
   }, [navigate]);
@@ -23,6 +24,9 @@ const WorkerDashboard = () => {
     try {
       const parsedUser = JSON.parse(localStorage.getItem('user') || '{}');
       const workerId = parsedUser?.workerId || parsedUser?._id || parsedUser?.id || null;
+
+      // Ensure worker identity is available even for legacy fallback calls.
+      // (Backend tenant isolation derives community from workerId when identity is present.)
 
       // New, society-scoped assignment endpoint (preferred)
       if (workerId) {
@@ -36,8 +40,10 @@ const WorkerDashboard = () => {
       }
 
       // Backward compatible fallback
+      // Backward compatible fallback only; new implementation should use /api/workers/:workerId/complaints.
+      // If this fallback is hit, it may require worker identity scoping.
       const fallbackRes = await axios.get(
-        'https://community-connect-backend-wqwc.onrender.com/api/complaints?role=worker'
+        'https://community-connect-backend-wqwc.onrender.com/api/complaints?role=worker&userId=' + encodeURIComponent(workerId || '')
       );
       if (fallbackRes.data.success) {
         setComplaints(fallbackRes.data.complaints);
@@ -51,9 +57,11 @@ const WorkerDashboard = () => {
 
   const handleStatusUpdate = async (id, status) => {
     try {
+      const parsedUser = JSON.parse(localStorage.getItem('user') || '{}');
+      const workerId = parsedUser?.workerId || parsedUser?._id || parsedUser?.id || null;
       const res = await axios.put(
         `https://community-connect-backend-wqwc.onrender.com/api/complaints/${id}`,
-        { status }
+        { status, role: 'worker', userId: workerId }
       );
       if (res.data.success) {
         fetchComplaints();
@@ -69,8 +77,9 @@ const WorkerDashboard = () => {
     <div className="space-y-6 animate-fade-in transition-colors duration-300">
       <div className="flex justify-between items-center bg-white/80 dark:bg-gray-900/60 backdrop-blur-xl p-6 rounded-3xl shadow-sm dark:shadow-none border border-gray-200 dark:border-gray-800 transition-colors">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white transition-colors">Technician Portal</h1>
-          <p className="text-gray-500 dark:text-gray-400 mt-1 transition-colors">Assigned duties for <span className="text-gray-700 dark:text-gray-200 transition-colors">{user?.name}</span></p>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white transition-colors">Worker Dashboard - {user?.communityName || 'Your Society'}</h1>
+          <p className="text-gray-500 dark:text-gray-400 mt-1 transition-colors">Welcome to {user?.communityName || 'Your Society'}. Assigned duties for <span className="text-gray-700 dark:text-gray-200 transition-colors">{user?.name}</span></p>
+
         </div>
         <button 
           onClick={() => { localStorage.removeItem('user'); navigate('/login'); }}

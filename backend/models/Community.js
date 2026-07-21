@@ -14,6 +14,8 @@ const communitySchema = new mongoose.Schema(
     },
     gatedCommunity: { type: Boolean, default: false },
     logoFilename: { type: String, default: null },
+    // Per-society map image
+    mapFilename: { type: String, default: null },
   },
   { versionKey: false, timestamps: true }
 );

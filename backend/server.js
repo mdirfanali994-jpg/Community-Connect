@@ -149,6 +149,16 @@ app.post('/api/login', async (req, res) => {
                 status: dbUser.status
             };
 
+            // Attach communityName for dashboard UX (no tenant sharing since it's derived by communityId)
+            try {
+                const Community = require('./models/Community');
+                const community = await Community.findOne({ _id: dbUser.communityId }).lean();
+                if (community?.name) userWithoutPassword.communityName = community.name;
+            } catch (e) {
+                // Ignore; UI will fallback to "Your Society"
+            }
+
+
             return res.json({ success: true, user: userWithoutPassword });
         }
 
@@ -207,12 +217,34 @@ app.post(
     upload.fields([{ name: 'image', maxCount: 1 }, { name: 'voice', maxCount: 1 }]),
     async (req, res) => {
         try {
-            const { text, userId, userName, flatNumber, location } = req.body;
+    const { text, userId, userName, flatNumber, location } = req.body;
+
+            // Tenant isolation: never trust frontend-sent communityId.
+            // This backend currently has no JWT middleware; it relies on req.query/req.body userId.
+            // We will strictly derive communityId from CommunityUser below.
+
+            // Derive communityId from logged-in user on the backend (from DB)
+            // NOTE: CommunityUser._id is a MongoDB ObjectId (not numeric)
+            const userDoc = await CommunityUser.findOne({
+                _id: userId,
+                role: 'resident'
+            }).lean();
+
+            const derivedCommunityId = userDoc?.communityId?.toString?.() || null;
+
+            // Hard requirement: never allow creation without a valid communityId.
+            // Prevents legacy/null docs from being queried across tenants.
+            if (!derivedCommunityId) {
+                return res.status(403).json({ success: false, message: 'Forbidden: community isolation' });
+            }
 
             const imageFile = req.files?.image?.[0]?.filename || null;
             const voiceFile = req.files?.voice?.[0]?.filename || null;
-            const newComplaint = {
+
+
+    const newComplaint = {
                 id: Date.now().toString(),
+                communityId: derivedCommunityId,
                 userId: parseInt(userId),
                 userName,
                 flatNumber,
@@ -224,7 +256,9 @@ app.post(
                 assignedWorker: null,
                 expectedCompletionDate: null,
                 adminRemarks: '',
-                date: new Date().toISOString()
+                // Backward compatible: existing UI uses `date`; also populate `createdAt` for tenant validation.
+                date: new Date().toISOString(),
+                createdAt: new Date().toISOString()
             };
 
             console.log("NEW COMPLAINT:");
@@ -239,8 +273,11 @@ app.post(
                     notificationId: notification?._id || notification?.id,
                     targetRole: notification?.targetRole
                 });
-                console.log("📤 [socket] emitting notification:new to room 'admin'");
-                io.to('admin').emit('notification:new', notification);
+                const communityId = notification?.communityId ? String(notification.communityId) : null;
+                const room = communityId ? `admin:${communityId}` : 'admin:unknown';
+                console.log("📤 [socket] emitting notification:new to room", room);
+                io.to(room).emit('notification:new', notification);
+
             } catch (notifyErr) {
                 console.error('Notification emit error:', notifyErr);
             }
@@ -262,27 +299,109 @@ app.post(
     
 );
 
-// Get Complaints API
+// Get Complaints API (community-scoped)
 app.get('/api/complaints', ensureMongoConnected, async (req, res) => {
     const { userId, role } = req.query;
+    console.log("GET /api/complaints route reached");
 
     let query = {};
+    let scopeCommunityId = null;
 
-    if (role === 'user' && userId) {
-        query = { userId: parseInt(userId) };
+    if (role === 'user' || role === 'resident') {
+        if (!userId) {
+            return res.status(403).json({ success: false, message: 'Forbidden: community isolation' });
+        }
+        const userDoc = await CommunityUser.findOne({ _id: userId, role: 'resident' }).lean();
+        scopeCommunityId = userDoc?.communityId?.toString?.() || null;
+        if (!scopeCommunityId) {
+            return res.status(403).json({ success: false, message: 'Forbidden: community isolation' });
+        }
+        // Resident: only their own complaints
+        query = { communityId: scopeCommunityId, userId: userId, status: { $in: ['Submitted','Verified','Assigned','Assigned to Worker','Work In Progress','Completed','Work In Progress'] } };
+        // If older docs store numeric userId, fall back to filtering by userName/flat/userId is not safe.
+        // Keep backward compatibility by also allowing legacy numeric userId match when needed.
+        query = {
+            communityId: scopeCommunityId,
+            $or: [
+                { userId: Number(userId) },
+                { userId: userId }
+            ]
+        };
     } else if (role === 'worker') {
-        // Frontend expects only assignments to Bob Builder that are not completed.
-        query = { assignedWorker: 'Bob Builder', status: { $ne: 'Completed' } };
+        if (!userId) {
+            return res.status(403).json({ success: false, message: 'Forbidden: community isolation' });
+        }
+        const workerDoc = await Worker.findOne({ _id: String(userId), isActive: true }).lean();
+        scopeCommunityId = workerDoc?.communityId?.toString?.() || null;
+        if (!scopeCommunityId) {
+            return res.status(403).json({ success: false, message: 'Forbidden: community isolation' });
+        }
+        query = {
+            communityId: scopeCommunityId,
+            $or: [
+                { 'assignment.workerId': String(userId) },
+                { assignedWorker: workerDoc?.name || null }
+            ],
+            status: { $ne: 'Completed' }
+        };
+    } else {
+        // Admin: validate identity via headers
+        const xAdminId = req.headers['x-admin-id'];
+        const xCommunityId = req.headers['x-community-id'];
+        if (!xAdminId || !xCommunityId) {
+            return res.status(403).json({ success: false, message: 'Forbidden: community isolation' });
+        }
+        const admin = await CommunityUser.findOne({ _id: xAdminId, role: 'admin', communityId: xCommunityId }).lean();
+        scopeCommunityId = admin?.communityId?.toString?.() || null;
+        if (!scopeCommunityId) {
+            return res.status(403).json({ success: false, message: 'Forbidden: community isolation' });
+        }
+        query = { communityId: scopeCommunityId };
     }
 
     const filteredComplaints = await Complaint.find(query).sort({ date: -1 }).lean();
-    res.json({ success: true, complaints: filteredComplaints });
+    return res.json({ success: true, complaints: filteredComplaints });
 });
 
-// Update Complaint Status API (Admin/Worker)
+
+// Update Complaint Status API (Admin/Worker) - community-scoped
 app.put('/api/complaints/:id', ensureMongoConnected, async (req, res) => {
     const { id } = req.params;
     const { status, assignedWorker, adminRemarks, expectedCompletionDate } = req.body;
+
+    // Derive requester community strictly from identity, never from frontend.
+    const xAdminId = req.headers['x-admin-id'];
+    const xCommunityId = req.headers['x-community-id'];
+
+    let scopeCommunityId = null;
+
+    // Admin scope
+    if (xAdminId && xCommunityId) {
+        const admin = await CommunityUser.findOne({
+            _id: xAdminId,
+            role: 'admin',
+            communityId: xCommunityId
+        }).lean();
+        scopeCommunityId = admin?.communityId?.toString?.() || null;
+    }
+
+    // Resident/worker legacy scope
+    if (!scopeCommunityId) {
+        const candidateUserId = req.query?.userId || req.body?.userId;
+        const role = req.query?.role || req.body?.role;
+        if (candidateUserId && role === 'resident') {
+            const userDoc = await CommunityUser.findOne({ _id: candidateUserId, role: 'resident' }).lean();
+            scopeCommunityId = userDoc?.communityId?.toString?.() || null;
+        } else if (candidateUserId && role === 'worker') {
+            const workerDoc = await Worker.findOne({ _id: String(candidateUserId) }).lean();
+            scopeCommunityId = workerDoc?.communityId?.toString?.() || null;
+        }
+    }
+
+
+    if (!scopeCommunityId) {
+        return res.status(403).json({ success: false, message: 'Forbidden: community isolation' });
+    }
 
     const update = {};
     if (status) update.status = status;
@@ -290,12 +409,17 @@ app.put('/api/complaints/:id', ensureMongoConnected, async (req, res) => {
     if (adminRemarks !== undefined) update.adminRemarks = adminRemarks;
     if (expectedCompletionDate !== undefined) update.expectedCompletionDate = expectedCompletionDate;
 
-    const updated = await Complaint.findOneAndUpdate({ id }, update, { new: true, lean: true });
+    const updated = await Complaint.findOneAndUpdate(
+        { id, communityId: scopeCommunityId },
+        update,
+        { new: true, lean: true }
+    );
 
     if (updated) {
         res.json({ success: true, complaint: updated });
     } else {
-        res.status(404).json({ success: false, message: 'Complaint not found' });
+        // Do not leak existence across communities
+        res.status(403).json({ success: false, message: 'Forbidden: community isolation' });
     }
 });
 
@@ -303,7 +427,38 @@ app.put('/api/complaints/:id', ensureMongoConnected, async (req, res) => {
 app.delete('/api/complaints/:id', ensureMongoConnected, async (req, res) => {
     const { id } = req.params;
 
-    const deletedComplaint = await Complaint.findOneAndDelete({ id }).lean();
+    // Derive requester community strictly from identity (admin/resident/worker), never from arbitrary frontend values.
+    const xAdminId = req.headers['x-admin-id'];
+    const xCommunityId = req.headers['x-community-id'];
+
+    let scopeCommunityId = null;
+
+    // Admin scope
+    if (xAdminId && xCommunityId) {
+        const admin = await CommunityUser.findOne({ _id: xAdminId, role: 'admin', communityId: xCommunityId }).lean();
+        scopeCommunityId = admin?.communityId?.toString?.() || null;
+    }
+
+    // Resident/worker legacy scope
+    if (!scopeCommunityId) {
+        const candidateUserId = req.query?.userId || req.body?.userId;
+        const role = req.query?.role || req.body?.role;
+
+        if (candidateUserId && role === 'resident') {
+            const userDoc = await CommunityUser.findOne({ _id: candidateUserId, role: 'resident' }).lean();
+            scopeCommunityId = userDoc?.communityId?.toString?.() || null;
+        } else if (candidateUserId && role === 'worker') {
+            const workerDoc = await Worker.findOne({ _id: String(candidateUserId) }).lean();
+            scopeCommunityId = workerDoc?.communityId?.toString?.() || null;
+        }
+    }
+
+    if (!scopeCommunityId) {
+        return res.status(403).json({ success: false, message: 'Forbidden: community isolation' });
+    }
+
+
+    const deletedComplaint = await Complaint.findOneAndDelete({ id, communityId: scopeCommunityId }).lean();
 
     if (deletedComplaint) {
         // Also delete associated files if they exist
@@ -322,35 +477,65 @@ app.delete('/api/complaints/:id', ensureMongoConnected, async (req, res) => {
 
         res.json({ success: true, message: 'Complaint deleted successfully' });
     } else {
-        res.status(404).json({ success: false, message: 'Complaint not found' });
+        // Do not leak existence across communities
+        res.status(403).json({ success: false, message: 'Forbidden: community isolation' });
     }
 });
 
-let customMapFilename = null;
+const Community = require('./models/Community');
 
-// Map Settings API
-app.get('/api/settings/map', (req, res) => {
-    res.json({
-        success: true,
-        mapUrl: customMapFilename
-            ? `https://community-connect-backend-wqwc.onrender.com/uploads/${customMapFilename}`
-            : null
-    });
+// Map Settings API — per-society
+app.get('/api/settings/map', ensureMongoConnected, async (req, res) => {
+    try {
+        // Derive communityId from identity headers
+        const xAdminId = req.headers['x-admin-id'];
+        const xCommunityId = req.headers['x-community-id'];
+        const communityId = xCommunityId || null;
+
+        if (!communityId) {
+            return res.json({ success: true, mapUrl: null });
+        }
+
+        const community = await Community.findById(communityId).select({ mapFilename: 1 }).lean();
+        const mapFilename = community?.mapFilename || null;
+
+        res.json({
+            success: true,
+            mapUrl: mapFilename
+                ? `https://community-connect-backend-wqwc.onrender.com/uploads/${mapFilename}`
+                : null
+        });
+    } catch (error) {
+        console.error('GET /api/settings/map error:', error);
+        res.status(500).json({ success: false, message: 'Server error' });
+    }
 });
 
-app.post('/api/settings/map', upload.single('mapImage'), (req, res) => {
+app.post('/api/settings/map', ensureMongoConnected, upload.single('mapImage'), async (req, res) => {
     try {
+        // Require admin identity to set per-society map
+        const xAdminId = req.headers['x-admin-id'];
+        const xCommunityId = req.headers['x-community-id'];
+        if (!xAdminId || !xCommunityId) {
+            return res.status(403).json({ success: false, message: 'Forbidden: admin identity required' });
+        }
+        // Verify admin belongs to this community
+        const admin = await CommunityUser.findOne({ _id: xAdminId, role: 'admin', communityId: xCommunityId }).lean();
+        if (!admin) {
+            return res.status(403).json({ success: false, message: 'Forbidden: invalid admin identity' });
+        }
+
         if (req.file) {
-            customMapFilename = req.file.filename;
+            await Community.findByIdAndUpdate(xCommunityId, { mapFilename: req.file.filename });
             res.json({
                 success: true,
-                mapUrl: `https://community-connect-backend-wqwc.onrender.com/${customMapFilename}`
+                mapUrl: `https://community-connect-backend-wqwc.onrender.com/uploads/${req.file.filename}`
             });
         } else {
             res.status(400).json({ success: false, message: 'No image provided' });
         }
     } catch (error) {
-        console.error(error);
+        console.error('POST /api/settings/map error:', error);
         res.status(500).json({ success: false, message: 'Server error' });
     }
 });
@@ -360,12 +545,29 @@ io.on("connection", (socket) => {
 
   // Role-based room join for future scalable notifications
   socket.on('joinRole', (payload = {}) => {
-    const { role } = payload;
+    const { role, communityId } = payload;
     console.log('🔌 [socket] joinRole received:', payload);
     if (!role) return;
+
+    // Legacy room for role-only listeners
     socket.join(role);
     console.log(`✅ [socket] socket ${socket.id} joined room '${role}'`);
+
+    // If communityId is provided, also join community-scoped rooms
+    if (communityId) {
+      socket.join(`${role}:${communityId}`);
+      console.log(`✅ [socket] socket ${socket.id} joined room '${role}:${communityId}'`);
+    }
   });
+
+  socket.on('joinCommunity', (payload = {}) => {
+    const { communityId, role } = payload;
+    if (!communityId || !role) return;
+
+    socket.join(`${role}:${communityId}`);
+    console.log(`✅ [socket] socket ${socket.id} joined room '${role}:${communityId}' via joinCommunity`);
+  });
+
 
 
   socket.on("disconnect", () => {
