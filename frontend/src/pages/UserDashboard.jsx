@@ -1,8 +1,9 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
+
 import { useNavigate, Link } from 'react-router-dom';
 import axios from 'axios';
-import { Mic, MicOff, Image as ImageIcon, MapPin, Send, AlertCircle, Clock, CheckCircle } from 'lucide-react';
-import { MapContainer, ImageOverlay, Marker, useMapEvents, TileLayer } from 'react-leaflet';
+import { Mic, MicOff, Image as ImageIcon, MapPin, Send, AlertCircle, CheckCircle, User, Phone, Star, ThumbsUp, RotateCcw, Clock, Calendar, Camera } from 'lucide-react';
+import { MapContainer, Marker, useMapEvents, TileLayer } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 
@@ -10,6 +11,8 @@ import 'leaflet/dist/leaflet.css';
 import markerIcon2x from 'leaflet/dist/images/marker-icon-2x.png';
 import markerIcon from 'leaflet/dist/images/marker-icon.png';
 import markerShadow from 'leaflet/dist/images/marker-shadow.png';
+import { API_BASE_URL } from '../config/api';
+
 
 delete L.Icon.Default.prototype._getIconUrl;
 L.Icon.Default.mergeOptions({
@@ -18,7 +21,7 @@ L.Icon.Default.mergeOptions({
   shadowUrl: markerShadow,
 });
 
-const bounds = [[0, 0], [600, 900]];
+
 
 function LocationSelector({ location, setLocation }) {
   useMapEvents({
@@ -28,6 +31,49 @@ function LocationSelector({ location, setLocation }) {
   });
   return location ? <Marker position={[location.lat, location.lng]} /> : null;
 }
+
+const StatusTimelineView = ({ complaint }) => {
+  const statusFlow = [
+    'Submitted', 'Verified', 'Assigned', 'Accepted', 'Started', 'Work In Progress', 'Completed', 'Resident Approved'
+  ];
+  const currentIndex = statusFlow.indexOf(complaint.status);
+
+  if (!complaint.timeline) return null;
+
+  return (
+    <div className="mt-4 space-y-3">
+      <h4 className="text-sm font-semibold text-gray-900 dark:text-white">Status Timeline</h4>
+      <div className="relative pl-6 space-y-3">
+        {statusFlow.map((status, idx) => {
+          const timelineEntry = (complaint.timeline || []).find(t => t.status === status);
+          const isActive = idx <= currentIndex;
+          const isCurrent = idx === currentIndex;
+          return (
+            <div key={status} className="relative">
+              {idx < statusFlow.length - 1 && (
+                <div className={`absolute left-[-10px] top-4 w-0.5 h-full ${isActive ? 'bg-primary' : 'bg-gray-200 dark:bg-gray-700'}`} />
+              )}
+              <div className={`absolute left-[-14px] top-1 w-3 h-3 rounded-full border-2 ${
+                isCurrent ? 'bg-primary border-primary' :
+                isActive ? 'bg-primary/30 border-primary' :
+                'bg-white dark:bg-gray-900 border-gray-300 dark:border-gray-600'
+              }`} />
+              <div className={`text-xs ${isActive ? 'text-gray-900 dark:text-gray-100' : 'text-gray-400 dark:text-gray-500'}`}>
+                <span className="font-medium">{status}</span>
+                {timelineEntry && (
+                  <span className="ml-2 text-gray-500">
+                    {timelineEntry.updatedAt ? new Date(timelineEntry.updatedAt).toLocaleString() : ''}
+                    {timelineEntry.updatedBy ? ` - by ${timelineEntry.updatedBy}` : ''}
+                  </span>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
 
 const UserDashboard = () => {
   const [user, setUser] = useState(null);
@@ -39,53 +85,116 @@ const UserDashboard = () => {
   const [image, setImage] = useState(null);
   const [loading, setLoading] = useState(false);
   const [mapUrl, setMapUrl] = useState('/community-map.jpg');
-  
+  const [ratingModal, setRatingModal] = useState({ open: false, complaintId: null });
+  const [workerRating, setWorkerRating] = useState(5);
+  const [ratingComment, setRatingComment] = useState('');
+  void mapUrl;
+
+
   const navigate = useNavigate();
+
+
   const recognitionRef = useRef(null);
+
+  const fetchComplaints = async (userId, communityId) => {
+    try {
+      const res = await axios.get(
+        `${API_BASE_URL}/complaints?role=resident&userId=${userId}`,
+        {
+          headers: {
+            'x-community-id': communityId,
+          },
+        }
+      );
+
+      if (res.data.success) {
+        setComplaints(res.data.complaints);
+      }
+    } catch (err) {
+      console.error('Error fetching complaints', err);
+    }
+  };
 
   useEffect(() => {
     const userData = localStorage.getItem('user');
-    if (!userData) {
-      navigate('/login');
-      return;
-    }
-    const parsedUser = JSON.parse(userData);
-    if (parsedUser.role !== 'resident') {
-      navigate('/login');
-      return;
-    }
-    setUser(parsedUser);
-    fetchComplaints(parsedUser.id);
-    
-    const fetchSettings = async () => {
-      try {
-        const res = await axios.get('https://community-connect-backend-wqwc.onrender.com/api/settings/map');
-        if (res.data.success && res.data.mapUrl) {
-          setMapUrl(res.data.mapUrl);
-        }
-      } catch (error) {
-        console.error('Error fetching map settings', error);
-      }
-    };
-    fetchSettings();
 
+    const run = async () => {
+
+
+
+
+
+      if (!userData) {
+        navigate('/login');
+        return;
+      }
+      const parsedUser = JSON.parse(userData);
+      if (parsedUser.role !== 'resident') {
+        navigate('/login');
+        return;
+      }
+
+      setUser(parsedUser);
+
+      // Society-scoped fetches
+      await fetchComplaints(parsedUser.id, parsedUser.communityId);
+
+      // Map settings are global prototype right now; keep call non-blocking
+      // Keep map settings call; mapUrl is used by the modal UI
+      try {
+        const mapRes = await axios.get(
+          `${API_BASE_URL}/settings/map`
+        );
+        if (mapRes?.data?.success && mapRes?.data?.mapUrl) {
+          setMapUrl(mapRes.data.mapUrl);
+        }
+      } catch (mapErr) {
+        console.error('Error fetching map settings', mapErr);
+      }
+
+
+
+    };
+
+    run();
+
+    return () => {};
+  }, [navigate]);
+
+  useEffect(() => {
     // Initialize Speech Recognition
     if ('SpeechRecognition' in window || 'webkitSpeechRecognition' in window) {
       const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
       recognitionRef.current = new SpeechRecognition();
       recognitionRef.current.continuous = true;
-      recognitionRef.current.interimResults = true;
+
+      // Avoid repeated chunk concatenation.
+      recognitionRef.current.interimResults = false;
+
+      // Track last committed transcript so we never append the same final chunk twice.
+      let lastFinal = '';
 
       recognitionRef.current.onresult = (event) => {
-        let finalTranscript = '';
-        for (let i = event.resultIndex; i < event.results.length; ++i) {
-          if (event.results[i].isFinal) {
-            finalTranscript += event.results[i][0].transcript;
+        const results = event.results;
+        let latestFinal = '';
+
+        for (let i = results.length - 1; i >= 0; i--) {
+          if (results[i] && results[i].isFinal) {
+            latestFinal = results[i][0]?.transcript || '';
+            break;
           }
         }
-        if (finalTranscript) {
-          setText(prev => prev + ' ' + finalTranscript);
-        }
+
+        latestFinal = latestFinal.trim();
+        if (!latestFinal) return;
+
+        if (latestFinal === lastFinal) return;
+        lastFinal = latestFinal;
+
+        setText((prev) => {
+          const prevTrim = (prev || '').trim();
+          return prevTrim ? `${prevTrim} ${latestFinal}` : latestFinal;
+        });
       };
 
       recognitionRef.current.onerror = (event) => {
@@ -97,20 +206,11 @@ const UserDashboard = () => {
         setIsRecording(false);
       };
     }
-  }, [navigate]);
-
-  const fetchComplaints = async (userId) => {
-    try {
-      const res = await axios.get("https://community-connect-backend-wqwc.onrender.com/api/complaints?role=resident&userId=${userId})");
-      if (res.data.success) {
-        setComplaints(res.data.complaints);
-      }
-    } catch (error) {
-      console.error('Error fetching complaints', error);
-    }
-  };
+  }, []);
 
   const toggleRecording = () => {
+
+
     if (isRecording) {
       recognitionRef.current?.stop();
       setIsRecording(false);
@@ -138,14 +238,14 @@ const UserDashboard = () => {
     if (image) formData.append('image', image);
 
     try {
-      const res = await axios.post('https://community-connect-backend-wqwc.onrender.com/api/complaints', formData, {
+      const res = await axios.post(`${API_BASE_URL}/complaints`, formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
       if (res.data.success) {
         setText('');
         setImage(null);
         setLocation(null);
-        fetchComplaints(user.id);
+        fetchComplaints(user.id, user.communityId);
         alert('Complaint registered successfully!');
       }
     } catch (error) {
@@ -156,8 +256,70 @@ const UserDashboard = () => {
     }
   };
 
+  const handleApproveCompletion = async (complaintId) => {
+    try {
+      const res = await axios.put(
+        `${API_BASE_URL}/complaints/${complaintId}/approve-completion`,
+        { userId: user.id }
+      );
+      if (res.data.success) {
+        alert('✅ You have approved the completed work. Complaint is now closed.');
+        fetchComplaints(user.id, user.communityId);
+      }
+    } catch (err) {
+      console.error('Error approving completion', err);
+      alert('Failed to approve completion');
+    }
+  };
+
+  const handleRequestRework = async (complaintId) => {
+    const reason = prompt('Please describe what needs rework:');
+    if (!reason) return;
+    try {
+      const res = await axios.put(
+        `${API_BASE_URL}/complaints/${complaintId}/request-rework`,
+        { userId: user.id, review: reason }
+      );
+      if (res.data.success) {
+        alert('Rework requested. Worker will be notified.');
+        fetchComplaints(user.id, user.communityId);
+      }
+    } catch (err) {
+      console.error('Error requesting rework', err);
+      alert('Failed to request rework');
+    }
+  };
+
+  const handleRateWorker = async () => {
+    if (!ratingModal.complaintId) return;
+    try {
+      const complaint = complaints.find(c => c.id === ratingModal.complaintId);
+      const workerId = complaint?.assignment?.workerId || complaint?.workerDetails?.workerId;
+      if (!workerId) {
+        alert('Worker ID not found');
+        return;
+      }
+      await axios.post(
+        `${API_BASE_URL}/workers/${workerId}/rate`,
+        {
+          complaintId: ratingModal.complaintId,
+          rating: workerRating,
+          review: ratingComment,
+          userId: user.id
+        }
+      );
+      alert('✅ Rating submitted successfully!');
+      setRatingModal({ open: false, complaintId: null });
+      setWorkerRating(5);
+      setRatingComment('');
+    } catch (err) {
+      console.error('Error rating worker', err);
+      alert('Failed to submit rating');
+    }
+  };
+
   const getProgressPercentage = (status) => {
-    const statuses = ['Submitted', 'Verified', 'Assigned to Worker', 'Work In Progress', 'Completed'];
+    const statuses = ['Submitted', 'Verified', 'Assigned', 'Accepted', 'Started', 'Work In Progress', 'Completed', 'Resident Approved'];
     const index = statuses.indexOf(status);
     return index === -1 ? 0 : (index / (statuses.length - 1)) * 100;
   };
@@ -170,8 +332,9 @@ const UserDashboard = () => {
       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center bg-white/80 dark:bg-gray-900/60 backdrop-blur-xl p-6 rounded-3xl shadow-sm border border-gray-200 dark:border-gray-800 relative overflow-hidden group transition-colors">
         <div className="absolute top-0 right-0 w-32 h-32 bg-primary/10 rounded-full blur-[40px] group-hover:bg-primary/20 transition-all"></div>
         <div className="relative z-10 mb-4 sm:mb-0">
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white transition-colors">Resident Dashboard</h1>
-          <p className="text-gray-500 dark:text-gray-400 mt-1 transition-colors">Welcome back, <span className="text-gray-700 dark:text-gray-200 font-medium">{user.name}</span> <span className="px-2 py-0.5 ml-2 bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-md text-xs font-mono text-primary transition-colors">FLAT {user.flat}</span></p>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white transition-colors">Resident Dashboard - {user?.communityName || 'Your Society'}</h1>
+          <p className="text-gray-500 dark:text-gray-400 mt-1 transition-colors">Welcome to {user?.communityName || 'Your Society'}, <span className="text-gray-700 dark:text-gray-200 font-medium">{user.name}</span> <span className="px-2 py-0.5 ml-2 bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-md text-xs font-mono text-primary transition-colors">FLAT {user.flat}</span></p>
+
         </div>
         <div className="relative z-10 flex items-center space-x-4">
           <Link to="/public-board" className="text-primary hover:text-primary-dark hover:underline text-sm font-medium transition-colors">
@@ -289,9 +452,10 @@ const UserDashboard = () => {
                   <span className={`px-3 py-1 rounded-full text-xs font-semibold border transition-colors ${
                     complaint.status === 'Completed' ? 'bg-green-50 dark:bg-green-900/30 text-green-600 dark:text-green-400 border-green-200 dark:border-green-800/50' :
                     complaint.status === 'Work In Progress' ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 border-blue-200 dark:border-blue-800/50' :
+                    complaint.status === 'Resident Approved' ? 'bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300 border-green-300 dark:border-green-700' :
                     'bg-yellow-50 dark:bg-yellow-900/30 text-yellow-600 dark:text-yellow-400 border-yellow-200 dark:border-yellow-800/50'
                   }`}>
-                    {complaint.status}
+                    {complaint.status === 'Resident Approved' ? 'Closed' : complaint.status}
                   </span>
                 </div>
 
@@ -299,19 +463,122 @@ const UserDashboard = () => {
                 <div className="mt-6 relative bg-gray-50 dark:bg-gray-950 p-4 rounded-2xl border border-gray-200/50 dark:border-gray-800/50 transition-colors">
                   <div className="overflow-hidden h-2 mb-4 text-xs flex rounded-full bg-gray-200 dark:bg-gray-800 transition-colors">
                     <div style={{ width: `${getProgressPercentage(complaint.status)}%` }} className={`shadow-none flex flex-col text-center whitespace-nowrap text-white justify-center transition-all duration-1000 ease-out ${
-                      complaint.status === 'Completed' ? 'bg-green-500' : 'bg-primary'
+                      complaint.status === 'Completed' || complaint.status === 'Resident Approved' ? 'bg-green-500' : 'bg-primary'
                     }`}></div>
                   </div>
                   <div className="flex justify-between text-[11px] text-gray-500 font-medium uppercase tracking-wider transition-colors">
                     <span className={getProgressPercentage(complaint.status) >= 0 ? 'text-gray-700 dark:text-gray-300' : ''}>Submitted</span>
-                    <span className={`hidden sm:inline ${getProgressPercentage(complaint.status) >= 25 ? 'text-gray-700 dark:text-gray-300' : ''}`}>Verified</span>
-                    <span className={`hidden sm:inline ${getProgressPercentage(complaint.status) >= 50 ? 'text-gray-700 dark:text-gray-300' : ''}`}>Assigned</span>
-                    <span className={`hidden sm:inline ${getProgressPercentage(complaint.status) >= 75 ? 'text-gray-700 dark:text-gray-300' : ''}`}>WIP</span>
-                    <span className={getProgressPercentage(complaint.status) === 100 ? 'text-green-600 dark:text-green-400' : ''}>Completed</span>
+                    <span className={`hidden sm:inline ${getProgressPercentage(complaint.status) >= 14 ? 'text-gray-700 dark:text-gray-300' : ''}`}>Verified</span>
+                    <span className={`hidden sm:inline ${getProgressPercentage(complaint.status) >= 28 ? 'text-gray-700 dark:text-gray-300' : ''}`}>Assigned</span>
+                    <span className={`hidden sm:inline ${getProgressPercentage(complaint.status) >= 42 ? 'text-gray-700 dark:text-gray-300' : ''}`}>Accepted</span>
+                    <span className={`hidden sm:inline ${getProgressPercentage(complaint.status) >= 57 ? 'text-gray-700 dark:text-gray-300' : ''}`}>Started</span>
+                    <span className={`hidden sm:inline ${getProgressPercentage(complaint.status) >= 71 ? 'text-gray-700 dark:text-gray-300' : ''}`}>WIP</span>
+                    <span className={getProgressPercentage(complaint.status) >= 85 ? 'text-green-600 dark:text-green-400' : ''}>Done</span>
                   </div>
                 </div>
+
+                {/* Worker Details */}
+                {(complaint.assignedWorker || complaint.assignment?.workerId) && (
+                  <div className="mt-4 pt-4 border-t border-gray-100 dark:border-gray-800">
+                    <h4 className="text-sm font-semibold text-gray-900 dark:text-white mb-3 flex items-center">
+                      <User className="w-4 h-4 mr-1.5 text-primary" />
+                      Assigned Worker
+                    </h4>
+                    <div className="flex items-center gap-3 bg-gray-50 dark:bg-gray-950/50 p-3 rounded-xl border border-gray-200/50 dark:border-gray-800/50">
+                      {(complaint.workerDetails?.profilePhoto || complaint.completion?.workerPhoto) ? (
+                        <img
+                          src={`${API_BASE_URL.replace('/api', '')}/uploads/${complaint.workerDetails?.profilePhoto || complaint.completion?.workerPhoto}`}
+                          alt={complaint.assignedWorker}
+                          className="w-10 h-10 rounded-full object-cover border border-gray-200 dark:border-gray-700"
+                        />
+                      ) : (
+                        <div className="w-10 h-10 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center">
+                          <User className="w-5 h-5 text-primary" />
+                        </div>
+                      )}
+                      <div>
+                        <span className="font-medium text-gray-900 dark:text-gray-200 block text-sm">{complaint.assignedWorker}</span>
+                        {complaint.workerDetails?.profession && (
+                          <span className="text-xs text-gray-500">{complaint.workerDetails.profession}</span>
+                        )}
+                        {complaint.workerDetails?.mobileNumber && (
+                          <div className="flex items-center text-xs text-gray-500 mt-0.5">
+                            <Phone className="w-3 h-3 mr-1" />
+                            {complaint.workerDetails.mobileNumber}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Completion Images & Action Buttons */}
+                {complaint.status === 'Completed' && (
+                  <div className="mt-4 pt-4 border-t border-gray-100 dark:border-gray-800">
+                    <h4 className="text-sm font-semibold text-gray-900 dark:text-white mb-3 flex items-center">
+                      <Camera className="w-4 h-4 mr-1.5 text-green-500" />
+                      Completion Photos
+                    </h4>
+                    {complaint.completion?.photos && complaint.completion.photos.length > 0 ? (
+                      <div className="grid grid-cols-2 md:grid-cols-3 gap-2 mb-4">
+                        {complaint.completion.photos.map((img, idx) => (
+                          <img
+                            key={idx}
+                            src={`${API_BASE_URL.replace('/api', '')}/uploads/${img}`}
+                            alt={`Completion ${idx + 1}`}
+                            className="w-full h-24 object-cover rounded-xl border border-gray-200 dark:border-gray-700"
+                          />
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-sm text-gray-500 mb-4">No completion photos uploaded.</p>
+                    )}
+
+                    {complaint.completion?.notes && (
+                      <div className="bg-primary/5 p-3 rounded-xl border border-primary/10 mb-4">
+                        <span className="text-primary/70 text-xs uppercase tracking-wide block mb-1">Completion Notes</span>
+                        <span className="text-sm text-gray-800 dark:text-gray-200">{complaint.completion.notes}</span>
+                      </div>
+                    )}
+
+                    <div className="flex flex-wrap gap-3">
+                      <button
+                        onClick={() => handleApproveCompletion(complaint.id)}
+                        className="flex items-center px-4 py-2.5 bg-green-50 dark:bg-green-900/20 hover:bg-green-100 text-green-700 dark:text-green-300 border border-green-200 dark:border-green-800 rounded-xl text-sm font-semibold transition-all"
+                      >
+                        <ThumbsUp className="w-4 h-4 mr-2" />
+                        Approve Completion
+                      </button>
+                      <button
+                        onClick={() => handleRequestRework(complaint.id)}
+                        className="flex items-center px-4 py-2.5 bg-amber-50 dark:bg-amber-900/20 hover:bg-amber-100 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800 rounded-xl text-sm font-semibold transition-all"
+                      >
+                        <RotateCcw className="w-4 h-4 mr-2" />
+                        Request Rework
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Resident Approved - Show rating option */}
+                {complaint.status === 'Resident Approved' && (
+                  <div className="mt-4 pt-4 border-t border-gray-100 dark:border-gray-800">
+                    <button
+                      onClick={() => setRatingModal({ open: true, complaintId: complaint.id })}
+                      className="flex items-center px-4 py-2.5 bg-yellow-50 dark:bg-yellow-900/20 hover:bg-yellow-100 text-yellow-700 dark:text-yellow-300 border border-yellow-200 dark:border-yellow-800 rounded-xl text-sm font-semibold transition-all"
+                    >
+                      <Star className="w-4 h-4 mr-2" />
+                      Rate Worker
+                    </button>
+                  </div>
+                )}
+
+                {/* Timeline */}
+                {complaint.timeline && complaint.timeline.length > 0 && (
+                  <StatusTimelineView complaint={complaint} />
+                )}
                 
-                {(complaint.assignedWorker || complaint.adminRemarks) && (
+                {(complaint.assignedWorker || complaint.adminRemarks) && complaint.status !== 'Completed' && complaint.status !== 'Resident Approved' && (
                   <div className="mt-5 pt-4 border-t border-gray-100 dark:border-gray-800 text-sm grid grid-cols-1 sm:grid-cols-2 gap-4 transition-colors">
                     {complaint.assignedWorker && (
                       <div className="bg-gray-50 dark:bg-gray-950/50 p-3 rounded-xl border border-gray-200/50 dark:border-gray-800/50 transition-colors">
@@ -332,6 +599,54 @@ const UserDashboard = () => {
           )}
         </div>
       </div>
+
+      {/* Rating Modal */}
+      {ratingModal.open && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-gray-950/80 backdrop-blur-sm animate-fade-in">
+          <div className="bg-white dark:bg-gray-900 rounded-3xl w-full max-w-md overflow-hidden border border-gray-200 dark:border-gray-800 shadow-2xl">
+            <div className="p-6">
+              <h3 className="text-lg font-bold text-gray-900 dark:text-white flex items-center mb-4">
+                <Star className="w-5 h-5 mr-2 text-yellow-500" />
+                Rate Worker
+              </h3>
+              <div className="flex items-center justify-center gap-2 mb-4">
+                {[1, 2, 3, 4, 5].map((star) => (
+                  <button
+                    key={star}
+                    onClick={() => setWorkerRating(star)}
+                    className={`p-1 transition-all ${
+                      star <= workerRating ? 'text-yellow-500 scale-110' : 'text-gray-300 dark:text-gray-600'
+                    }`}
+                  >
+                    <Star className="w-8 h-8 fill-current" />
+                  </button>
+                ))}
+              </div>
+              <textarea
+                rows="3"
+                placeholder="Add a comment (optional)..."
+                value={ratingComment}
+                onChange={(e) => setRatingComment(e.target.value)}
+                className="w-full p-3 bg-gray-50 dark:bg-gray-950/50 border border-gray-200 dark:border-gray-800 rounded-xl focus:ring-2 focus:ring-primary/50 focus:border-primary text-sm resize-none transition-all"
+              />
+              <div className="flex gap-3 mt-4">
+                <button
+                  onClick={handleRateWorker}
+                  className="flex-1 py-2.5 bg-primary hover:bg-primary-dark text-white rounded-xl font-semibold text-sm transition-all"
+                >
+                  Submit Rating
+                </button>
+                <button
+                  onClick={() => setRatingModal({ open: false, complaintId: null })}
+                  className="px-4 py-2.5 bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-xl text-sm font-semibold transition-all"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Map Modal */}
       {showMapModal && (

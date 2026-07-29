@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { LogIn, User, Lock } from 'lucide-react';
+import { API_BASE_URL } from '../config/api';
 
 const Login = () => {
   const [email, setEmail] = useState('');
@@ -16,7 +17,7 @@ const Login = () => {
     setLoading(true);
 
     try {
-      const res = await axios.post('https://community-connect-backend-wqwc.onrender.com/api/login', { email, password });
+      const res = await axios.post(`${API_BASE_URL}/login`, { email, password });
       if (res.data.success) {
         localStorage.setItem('user', JSON.stringify(res.data.user));
         
@@ -32,7 +33,18 @@ const Login = () => {
         }
       }
     } catch (err) {
-      setError(err.response?.data?.message || 'Failed to login');
+      const serverMessage = err.response?.data?.message || 'Failed to login';
+      
+      // Check for worker-specific status messages
+      if (serverMessage.includes('awaiting approval')) {
+        setError('⏳ ' + serverMessage);
+      } else if (serverMessage.includes('rejected')) {
+        setError('❌ ' + serverMessage);
+      } else if (serverMessage.includes('suspended')) {
+        setError('🔒 ' + serverMessage);
+      } else {
+        setError(serverMessage);
+      }
     } finally {
       setLoading(false);
     }
@@ -94,12 +106,12 @@ const Login = () => {
             </div>
           </div>
 
-          <div className="p-4 bg-gray-50 dark:bg-gray-950/50 border border-gray-200 dark:border-gray-800 rounded-xl text-xs text-gray-500 dark:text-gray-400 font-mono mt-4 transition-colors">
+            <div className="p-4 bg-gray-50 dark:bg-gray-950/50 border border-gray-200 dark:border-gray-800 rounded-xl text-xs text-gray-500 dark:text-gray-400 font-mono mt-4 transition-colors">
             <div className="text-gray-700 dark:text-gray-300 mb-1 font-sans font-medium text-sm">Demo Accounts:</div>
-            <div className="flex justify-between items-center py-1 border-b border-gray-200 dark:border-gray-800/50"><span className="text-gray-500">User</span> <span className="text-primary dark:text-primary/90">user@test.com</span></div>
+            <div className="flex justify-between items-center py-1 border-b border-gray-200 dark:border-gray-800/50"><span className="text-gray-500">Resident</span> <span className="text-primary dark:text-primary/90">resident@test.com</span></div>
             <div className="flex justify-between items-center py-1 border-b border-gray-200 dark:border-gray-800/50"><span className="text-gray-500">Admin</span> <span className="text-primary dark:text-primary/90">admin@test.com</span></div>
             <div className="flex justify-between items-center py-1"><span className="text-gray-500">Worker</span> <span className="text-primary dark:text-primary/90">worker@test.com</span></div>
-            <div className="mt-2 text-gray-500 text-center border-t border-gray-200 dark:border-gray-800 pt-2">Password: <span className="text-gray-700 dark:text-gray-300">password</span></div>
+            <div className="mt-2 text-gray-500 text-center border-t border-gray-200 dark:border-gray-800 pt-2">Passwords: <span className="text-gray-700 dark:text-gray-300">admin123 / resident123 / worker123</span></div>
           </div>
 
           <button

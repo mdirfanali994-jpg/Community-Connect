@@ -1,6 +1,6 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Building2, UserPlus, ArrowRight } from 'lucide-react';
+import { Building2, UserPlus, Wrench, ArrowRight } from 'lucide-react';
 
 const LandingCard = ({ title, description, icon, onClick, cta }) => {
   return (
@@ -53,7 +53,7 @@ const OnboardingLanding = () => {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <LandingCard
           title="Create Community"
           description="Set up your society and start inviting residents."
@@ -68,6 +68,14 @@ const OnboardingLanding = () => {
           icon={<UserPlus className="w-6 h-6 text-primary" />}
           cta="Join Now"
           onClick={() => navigate('/onboarding/join-community')}
+        />
+
+        <LandingCard
+          title="Join as Worker"
+          description="Register as a service professional and start helping your community."
+          icon={<Wrench className="w-6 h-6 text-primary" />}
+          cta="Register Now"
+          onClick={() => navigate('/onboarding/join-worker')}
         />
       </div>
 

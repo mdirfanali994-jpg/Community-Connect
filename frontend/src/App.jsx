@@ -5,12 +5,15 @@ import Login from './pages/Login';
 import UserDashboard from './pages/UserDashboard';
 import AdminDashboard from './pages/AdminDashboard';
 import WorkerDashboard from './pages/WorkerDashboard';
+import WorkTrackPage from './pages/WorkTrackPage';
+import WorkerProfile from './pages/WorkerProfile';
 import PublicBoard from './pages/PublicBoard';
 import CommunityMap from './pages/CommunityMap';
 import ErrorBoundary from './ErrorBoundary';
 import OnboardingLanding from './pages/OnboardingLanding';
 import CreateCommunity from './pages/CreateCommunity';
 import JoinCommunity from './pages/JoinCommunity';
+import WorkerRegistration from './pages/WorkerRegistration';
 
 function App() {
   const [isDark, setIsDark] = useState(() => {
@@ -70,10 +73,13 @@ function App() {
                 <Route path="/" element={<OnboardingLanding />} />
                 <Route path="/onboarding/create-community" element={<CreateCommunity />} />
                 <Route path="/onboarding/join-community" element={<JoinCommunity />} />
+                <Route path="/onboarding/join-worker" element={<WorkerRegistration />} />
                 <Route path="/login" element={<Login />} />
                 <Route path="/user/dashboard" element={<UserDashboard />} />
                 <Route path="/admin/dashboard" element={<AdminDashboard />} />
                 <Route path="/worker/dashboard" element={<WorkerDashboard />} />
+                <Route path="/worker/work/:complaintId" element={<WorkTrackPage />} />
+                <Route path="/worker/profile" element={<WorkerProfile />} />
                 <Route path="/public-board" element={<PublicBoard />} />
                 <Route path="/map" element={<CommunityMap />} />
               </Routes>

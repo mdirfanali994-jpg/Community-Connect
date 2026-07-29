@@ -1,6 +1,5 @@
 import { io } from 'socket.io-client';
-
-const SOCKET_URL = 'https://community-connect-backend-wqwc.onrender.com';
+import { SOCKET_URL } from '../config/api';
 
 let socketSingleton = null;
 
@@ -14,11 +13,15 @@ export const getSocket = () => {
   return socketSingleton;
 };
 
-export const connectAsRole = (role) => {
+export const connectAsRole = (role, communityId) => {
   const socket = getSocket();
 
   if (role) {
     socket.emit('joinRole', { role });
+  }
+
+  if (communityId) {
+    socket.emit('joinCommunity', { communityId: String(communityId), role });
   }
 
   if (!socket.connected) {
@@ -27,6 +30,7 @@ export const connectAsRole = (role) => {
 
   return socket;
 };
+
 
 export const disconnectSocket = () => {
   const socket = getSocket();

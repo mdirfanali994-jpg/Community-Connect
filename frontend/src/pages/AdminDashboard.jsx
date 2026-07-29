@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
-import { BarChart, CheckCircle, Clock, Trash2 } from 'lucide-react';
+import { BarChart, CheckCircle, Clock, Trash2, Wrench, XCircle, UserCheck, UserX, Search, ToggleLeft, ToggleRight, Star, Shield, User, Phone, Mail, Briefcase, Filter } from 'lucide-react';
 import NotificationBell from '../components/NotificationBell';
 import { connectAsRole } from '../services/socket';
 import { API_BASE_URL } from '../config/api';
@@ -25,6 +25,14 @@ const AdminDashboard = () => {
   const [pendingResidentsActionBusy, setPendingResidentsActionBusy] = useState(null);
 
   const [adminFlashMessage, setAdminFlashMessage] = useState('');
+
+  // Worker Management State
+  const [allWorkers, setAllWorkers] = useState([]);
+  const [allWorkersLoading, setAllWorkersLoading] = useState(false);
+  const [workerAnalytics, setWorkerAnalytics] = useState(null);
+  const [workerFilter, setWorkerFilter] = useState('All');
+  const [workerSearch, setWorkerSearch] = useState('');
+  const [workerActionBusy, setWorkerActionBusy] = useState(null);
 
   const navigate = useNavigate();
 
@@ -145,7 +153,7 @@ const AdminDashboard = () => {
       const { headers, error } = getAdminHeaders();
       if (error || !headers) throw new Error(error || 'Missing admin identity.');
       const res = await axios.put(
-        `https://community-connect-backend-wqwc.onrender.com/api/notifications/${id}/read`,
+        `${API_BASE_URL}/notifications/${id}/read`,
         {},
         { headers }
       );
@@ -162,7 +170,7 @@ const AdminDashboard = () => {
       const { headers, error } = getAdminHeaders();
       if (error || !headers) throw new Error(error || 'Missing admin identity.');
       const res = await axios.put(
-        `https://community-connect-backend-wqwc.onrender.com/api/notifications/read-all?targetRole=admin`,
+        `${API_BASE_URL}/notifications/read-all?targetRole=admin`,
         {},
         { headers }
       );
@@ -190,6 +198,8 @@ const AdminDashboard = () => {
           fetchNotifications(),
           fetchWorkers(),
           fetchPendingResidentRequests(),
+          fetchAllWorkers(),
+          fetchWorkerAnalytics(),
         ]);
       } catch {
         // ignore; errors already logged in fetch functions
@@ -282,7 +292,7 @@ const AdminDashboard = () => {
       const { headers, error } = getAdminHeaders();
       if (error || !headers) throw new Error(error || 'Missing admin identity.');
       const res = await axios.put(
-        `https://community-connect-backend-wqwc.onrender.com/api/complaints/${complaintId}/assign`,
+        `${API_BASE_URL}/complaints/${complaintId}/assign`,
         {
           workerId,
           assignedBy: JSON.parse(localStorage.getItem('user') || '{}')?.name || 'Admin',
@@ -306,7 +316,7 @@ const AdminDashboard = () => {
     try {
       const { headers, error } = getAdminHeaders();
       if (error || !headers) throw new Error(error || 'Missing admin identity.');
-      const res = await axios.delete(`https://community-connect-backend-wqwc.onrender.com/api/complaints/${id}`, { headers });
+      const res = await axios.delete(`${API_BASE_URL}/complaints/${id}`, { headers });
       if (res.data.success) {
         fetchComplaints();
       }
@@ -325,7 +335,7 @@ const AdminDashboard = () => {
     try {
       const { headers, error } = getAdminHeaders();
       if (error || !headers) throw new Error(error || 'Missing admin identity.');
-      const res = await axios.post('https://community-connect-backend-wqwc.onrender.com/api/settings/map', formData, {
+      const res = await axios.post(`${API_BASE_URL}/settings/map`, formData, {
         headers: { ...headers, 'Content-Type': 'multipart/form-data' }
       });
       if (res.data.success) {
@@ -339,6 +349,84 @@ const AdminDashboard = () => {
       setUploadingMap(false);
     }
   };
+
+  // Worker Management Handlers
+  const fetchAllWorkers = async () => {
+    const { headers, error } = getAdminHeaders();
+    if (error || !headers) return;
+    setAllWorkersLoading(true);
+    try {
+      const res = await axios.get(`${API_BASE_URL}/workers/all?status=${workerFilter}&search=${encodeURIComponent(workerSearch)}`, { headers });
+      if (res.data.success) {
+        setAllWorkers(res.data.workers || []);
+      }
+    } catch (err) {
+      console.error('Error fetching all workers', err);
+    } finally {
+      setAllWorkersLoading(false);
+    }
+  };
+
+  const fetchWorkerAnalytics = async () => {
+    const { headers, error } = getAdminHeaders();
+    if (error || !headers) return;
+    try {
+      const res = await axios.get(`${API_BASE_URL}/workers/analytics/summary`, { headers });
+      if (res.data.success) {
+        setWorkerAnalytics(res.data.analytics);
+      }
+    } catch (err) {
+      console.error('Error fetching worker analytics', err);
+    }
+  };
+
+  const handleWorkerStatus = async (workerId, status) => {
+    const { headers, error } = getAdminHeaders();
+    if (error || !headers) return;
+    setWorkerActionBusy(workerId);
+    try {
+      const reason = status === 'Rejected' ? prompt('Enter rejection reason (optional):') : '';
+      await axios.put(
+        `${API_BASE_URL}/workers/${workerId}/status`,
+        { status, rejectionReason: reason || '' },
+        { headers }
+      );
+      await fetchAllWorkers();
+      await fetchWorkerAnalytics();
+    } catch (err) {
+      console.error('Error updating worker status', err);
+      alert('Failed to update worker status');
+    } finally {
+      setWorkerActionBusy(null);
+    }
+  };
+
+  const handleWorkerDelete = async (workerId) => {
+    if (!confirm('Are you sure you want to delete this worker? This action cannot be undone.')) return;
+    const { headers, error } = getAdminHeaders();
+    if (error || !headers) return;
+    try {
+      await axios.delete(`${API_BASE_URL}/workers/${workerId}`, { headers });
+      await fetchAllWorkers();
+      await fetchWorkerAnalytics();
+    } catch (err) {
+      console.error('Error deleting worker', err);
+      alert('Failed to delete worker');
+    }
+  };
+
+  // Compute filtered workers based on status and search
+  const filteredWorkers = allWorkers.filter(w => {
+    const matchesStatus = workerFilter === 'All' || w.status === workerFilter;
+    const searchLower = workerSearch.toLowerCase();
+    const matchesSearch = !searchLower || 
+      w.name?.toLowerCase().includes(searchLower) ||
+      w.email?.toLowerCase().includes(searchLower) ||
+      w.mobileNumber?.includes(searchLower) ||
+      w.profession?.toLowerCase().includes(searchLower) ||
+      (w.skills || []).some(s => s.toLowerCase().includes(searchLower));
+    return matchesStatus && matchesSearch;
+  });
 
   const getAnalytics = () => {
     const total = complaints.length;
@@ -617,6 +705,238 @@ const AdminDashboard = () => {
             </div>
           )}
         </div>
+      </div>
+
+      {/* Worker Management Section */}
+      <div className="bg-white/80 dark:bg-gray-900/60 backdrop-blur-xl rounded-3xl shadow-sm border border-gray-200 dark:border-gray-800 overflow-hidden transition-colors">
+        <div className="p-6 border-b border-gray-200 dark:border-gray-800 flex flex-col sm:flex-row justify-between items-center bg-gray-50/50 dark:bg-gray-900/40 transition-colors">
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 sm:mb-0 flex items-center transition-colors">
+            <Wrench className="w-5 h-5 text-primary mr-2" />
+            Worker Management
+          </h2>
+          <div className="flex items-center gap-3">
+            {/* Search */}
+            <div className="relative">
+              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+              <input
+                type="text"
+                placeholder="Search workers..."
+                value={workerSearch}
+                onChange={(e) => setWorkerSearch(e.target.value)}
+                className="pl-9 pr-3 py-2 bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-700 text-sm rounded-xl outline-none focus:ring-2 focus:ring-primary focus:border-primary transition-all text-gray-700 dark:text-gray-200 placeholder:text-gray-400 dark:placeholder:text-gray-600"
+              />
+            </div>
+            {/* Status Filter */}
+            <select
+              value={workerFilter}
+              onChange={(e) => setWorkerFilter(e.target.value)}
+              className="bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-700 text-sm text-gray-700 dark:text-gray-200 rounded-xl px-3 py-2 outline-none focus:ring-2 focus:ring-primary transition-all"
+            >
+              <option value="All">All Workers</option>
+              <option value="Pending">Pending</option>
+              <option value="Approved">Approved</option>
+              <option value="Suspended">Suspended</option>
+              <option value="Rejected">Rejected</option>
+            </select>
+          </div>
+        </div>
+
+        {/* Analytics Summary */}
+        {workerAnalytics && (
+          <div className="grid grid-cols-3 md:grid-cols-7 gap-3 p-4 border-b border-gray-100 dark:border-gray-800/50">
+            <div className="text-center p-2 rounded-xl bg-gray-50 dark:bg-gray-950/30">
+              <p className="text-lg font-bold text-gray-900 dark:text-white">{workerAnalytics.total}</p>
+              <p className="text-[10px] text-gray-500 uppercase">Total</p>
+            </div>
+            <div className="text-center p-2 rounded-xl bg-yellow-50 dark:bg-yellow-900/10">
+              <p className="text-lg font-bold text-yellow-600">{workerAnalytics.pending}</p>
+              <p className="text-[10px] text-yellow-600 uppercase">Pending</p>
+            </div>
+            <div className="text-center p-2 rounded-xl bg-green-50 dark:bg-green-900/10">
+              <p className="text-lg font-bold text-green-600">{workerAnalytics.approved}</p>
+              <p className="text-[10px] text-green-600 uppercase">Approved</p>
+            </div>
+            <div className="text-center p-2 rounded-xl bg-blue-50 dark:bg-blue-900/10">
+              <p className="text-lg font-bold text-blue-600">{workerAnalytics.available}</p>
+              <p className="text-[10px] text-blue-600 uppercase">Available</p>
+            </div>
+            <div className="text-center p-2 rounded-xl bg-red-50 dark:bg-red-900/10">
+              <p className="text-lg font-bold text-red-600">{workerAnalytics.suspended}</p>
+              <p className="text-[10px] text-red-600 uppercase">Suspended</p>
+            </div>
+            <div className="text-center p-2 rounded-xl bg-gray-50 dark:bg-gray-950/30">
+              <p className="text-lg font-bold text-gray-900 dark:text-white">{workerAnalytics.rejected}</p>
+              <p className="text-[10px] text-gray-500 uppercase">Rejected</p>
+            </div>
+            <div className="text-center p-2 rounded-xl bg-purple-50 dark:bg-purple-900/10">
+              <p className="text-lg font-bold text-purple-600">{workerAnalytics.totalCompletedJobs}</p>
+              <p className="text-[10px] text-purple-600 uppercase">Jobs Done</p>
+            </div>
+          </div>
+        )}
+
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-sm text-gray-700 dark:text-gray-300 transition-colors">
+            <thead className="text-xs text-gray-500 dark:text-gray-400 uppercase bg-gray-50 dark:bg-gray-950/50 border-b border-gray-200 dark:border-gray-800 tracking-wider transition-colors">
+              <tr>
+                <th className="px-4 py-3 font-medium">Name</th>
+                <th className="px-4 py-3 font-medium">Skills</th>
+                <th className="px-4 py-3 font-medium">Experience</th>
+                <th className="px-4 py-3 font-medium">Contact</th>
+                <th className="px-4 py-3 font-medium">Status</th>
+                <th className="px-4 py-3 font-medium">Availability</th>
+                <th className="px-4 py-3 font-medium">Active Jobs</th>
+                <th className="px-4 py-3 font-medium">Rating</th>
+                <th className="px-4 py-3 font-medium">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100 dark:divide-gray-800/50 transition-colors">
+              {allWorkersLoading ? (
+                <tr>
+                  <td colSpan="9" className="px-6 py-12 text-center text-gray-500">Loading workers...</td>
+                </tr>
+              ) : filteredWorkers.length === 0 ? (
+                <tr>
+                  <td colSpan="9" className="px-6 py-12 text-center text-gray-500">
+                    <Wrench className="w-8 h-8 mx-auto mb-2 opacity-20" />
+                    No workers found.
+                  </td>
+                </tr>
+              ) : (
+                filteredWorkers.map((w) => (
+                  <tr key={w._id} className="hover:bg-gray-50 dark:hover:bg-gray-800/30 transition-colors">
+                    <td className="px-4 py-4">
+                      <div className="flex items-center gap-2">
+                        {w.profilePhoto ? (
+                          <img
+                            src={`${API_BASE_URL.replace('/api', '')}/uploads/${w.profilePhoto}`}
+                            alt={w.name}
+                            className="w-8 h-8 rounded-full object-cover border border-gray-200 dark:border-gray-700"
+                          />
+                        ) : (
+                          <div className="w-8 h-8 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center">
+                            <User className="w-4 h-4 text-primary" />
+                          </div>
+                        )}
+                        <div>
+                          <span className="font-medium text-gray-900 dark:text-gray-200 block">{w.name}</span>
+                          <span className="text-xs text-gray-500">{w.profession}</span>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-4 py-4">
+                      <div className="flex flex-wrap gap-1">
+                        {(w.skills || []).slice(0, 3).map((skill, idx) => (
+                          <span key={idx} className="px-1.5 py-0.5 bg-primary/5 border border-primary/10 rounded text-[10px] text-primary">
+                            {skill}
+                          </span>
+                        ))}
+                        {(w.skills || []).length > 3 && <span className="text-[10px] text-gray-400">+{w.skills.length - 3}</span>}
+                      </div>
+                    </td>
+                    <td className="px-4 py-4 text-xs">{w.experience || '-'}</td>
+                    <td className="px-4 py-4">
+                      <div className="text-xs space-y-0.5">
+                        <div className="flex items-center"><Phone className="w-3 h-3 mr-1 text-gray-400" />{w.mobileNumber}</div>
+                        <div className="flex items-center"><Mail className="w-3 h-3 mr-1 text-gray-400" />{w.email}</div>
+                      </div>
+                    </td>
+                    <td className="px-4 py-4">
+                      <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                        w.status === 'Approved' ? 'bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400 border border-green-200 dark:border-green-800' :
+                        w.status === 'Pending' ? 'bg-yellow-50 dark:bg-yellow-900/20 text-yellow-600 dark:text-yellow-400 border border-yellow-200 dark:border-yellow-800' :
+                        w.status === 'Suspended' ? 'bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-800' :
+                        w.status === 'Rejected' ? 'bg-gray-50 dark:bg-gray-900/20 text-gray-600 dark:text-gray-400 border border-gray-200 dark:border-gray-800' :
+                        'bg-gray-50 dark:bg-gray-900/20 text-gray-600'
+                      }`}>
+                        {w.status}
+                      </span>
+                    </td>
+                    <td className="px-4 py-4">
+                      <span className={`text-xs font-medium ${
+                        w.availability === 'Available' ? 'text-green-600' : w.availability === 'Busy' ? 'text-amber-600' : 'text-gray-500'
+                      }`}>
+                        {w.availability || '-'}
+                      </span>
+                    </td>
+                    <td className="px-4 py-4 text-center text-xs font-medium">{w.currentActiveJobs || 0}</td>
+                    <td className="px-4 py-4 text-center">
+                      <div className="flex items-center justify-center gap-1 text-xs">
+                        {w.rating ? <><Star className="w-3 h-3 text-yellow-500" />{w.rating.toFixed(1)}</> : '-'}
+                      </div>
+                    </td>
+                    <td className="px-4 py-4">
+                      <div className="flex flex-wrap gap-1.5">
+                        {w.status === 'Pending' && (
+                          <>
+                            <button
+                              onClick={() => handleWorkerStatus(w._id, 'Approved')}
+                              disabled={workerActionBusy === w._id}
+                              className="px-2 py-1 text-xs font-semibold bg-green-50 dark:bg-green-950/30 hover:bg-green-100 text-green-700 dark:text-green-300 border border-green-200 dark:border-green-800 rounded-lg transition-all disabled:opacity-60"
+                            >
+                              Approve
+                            </button>
+                            <button
+                              onClick={() => handleWorkerStatus(w._id, 'Rejected')}
+                              disabled={workerActionBusy === w._id}
+                              className="px-2 py-1 text-xs font-semibold bg-red-50 dark:bg-red-950/30 hover:bg-red-100 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-800 rounded-lg transition-all disabled:opacity-60"
+                            >
+                              Reject
+                            </button>
+                          </>
+                        )}
+                        {w.status === 'Approved' && (
+                          <button
+                            onClick={() => handleWorkerStatus(w._id, 'Suspended')}
+                            disabled={workerActionBusy === w._id}
+                            className="px-2 py-1 text-xs font-semibold bg-red-50 dark:bg-red-950/30 hover:bg-red-100 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-800 rounded-lg transition-all disabled:opacity-60"
+                          >
+                            Suspend
+                          </button>
+                        )}
+                        {w.status === 'Suspended' && (
+                          <button
+                            onClick={() => handleWorkerStatus(w._id, 'Approved')}
+                            disabled={workerActionBusy === w._id}
+                            className="px-2 py-1 text-xs font-semibold bg-green-50 dark:bg-green-950/30 hover:bg-green-100 text-green-700 dark:text-green-300 border border-green-200 dark:border-green-800 rounded-lg transition-all disabled:opacity-60"
+                          >
+                            Activate
+                          </button>
+                        )}
+                        <button
+                          onClick={() => handleWorkerDelete(w._id)}
+                          className="px-2 py-1 text-xs font-semibold bg-gray-50 dark:bg-gray-950 hover:bg-gray-100 text-gray-600 dark:text-gray-400 border border-gray-200 dark:border-gray-700 rounded-lg transition-all"
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Top Workers */}
+        {workerAnalytics?.topWorkers && workerAnalytics.topWorkers.length > 0 && (
+          <div className="p-4 border-t border-gray-200 dark:border-gray-800">
+            <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-3">🏆 Top Performing Workers</h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+              {workerAnalytics.topWorkers.map((tw, idx) => (
+                <div key={tw.id} className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-950/30 rounded-xl border border-gray-200 dark:border-gray-800">
+                  <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-sm font-bold text-primary">
+                    {idx + 1}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-gray-900 dark:text-white truncate">{tw.name}</p>
+                    <p className="text-xs text-gray-500">{tw.completedJobs} jobs • {tw.rating ? `${tw.rating.toFixed(1)} ★` : 'No rating'}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* System Configuration */}

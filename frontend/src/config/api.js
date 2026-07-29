@@ -5,11 +5,11 @@ const getEnv = (key) => {
 
 export const API_BASE_URL =
   getEnv('VITE_API_BASE_URL') ||
-  'https://community-connect-backend-wqwc.onrender.com/api';
+  'http://localhost:5001/api';
 
 export const SOCKET_URL =
   getEnv('VITE_SOCKET_URL') ||
-  'https://community-connect-backend-wqwc.onrender.com';
+  'http://localhost:5001';
 
 export const apiUrl = (path = '') => {
   if (!path) return API_BASE_URL;

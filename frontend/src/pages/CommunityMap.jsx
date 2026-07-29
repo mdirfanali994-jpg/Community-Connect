@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import axios from 'axios';
 import { ArrowLeft, MapPin } from 'lucide-react';
 import InteractiveComplaintMap from '../components/InteractiveComplaintMap';
+import { API_BASE_URL } from '../config/api';
 
 const CommunityMap = () => {
   const [complaints, setComplaints] = useState([]);
@@ -19,7 +20,7 @@ const CommunityMap = () => {
 
         const headers = communityId ? { 'x-community-id': String(communityId) } : {};
 
-        const res = await axios.get('https://community-connect-backend-wqwc.onrender.com/api/complaints', {
+        const res = await axios.get(`${API_BASE_URL}/complaints`, {
           headers,
           params: { role, userId }
         });

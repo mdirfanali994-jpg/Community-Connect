@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { Building2, ShieldCheck, ArrowLeft, KeyRound } from 'lucide-react';
+import { API_BASE_URL } from '../config/api';
 
 const CreateCommunity = () => {
   const navigate = useNavigate();
@@ -67,7 +68,7 @@ const CreateCommunity = () => {
       };
 
       const res = await axios.post(
-        'https://community-connect-backend-wqwc.onrender.com/api/onboarding/create-community',
+        `${API_BASE_URL}/onboarding/create-community`,
         payload
       );
 
