@@ -19,10 +19,19 @@ const notificationSchema = new mongoose.Schema(
     createdAt: { type: Date, default: () => new Date(), index: true },
 
     read: { type: Boolean, default: false, index: true },
+
+    // Multi-tenancy scope
+    communityId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Community',
+      required: false,
+      index: true,
+    },
+
     readAt: { type: Date, default: null }
   },
   {
-    versionKey: false
+    versionKey: false,
   }
 );
 

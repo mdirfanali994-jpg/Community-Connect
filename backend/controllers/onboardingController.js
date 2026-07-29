@@ -88,7 +88,9 @@ const createCommunity = async (req, res) => {
     return res.json({
       success: true,
       communityId: community._id.toString(),
+      communityName: community.name,
     });
+
   } catch (err) {
     console.error('createCommunity error:', err);
     return res.status(500).json({ success: false, message: 'Server error' });
@@ -147,7 +149,10 @@ const joinCommunity = async (req, res) => {
       flatNumber: String(flatNumber).trim(),
     });
 
-    return res.json({ success: true, status: 'pending' });
+    const name = community?.name;
+
+    return res.json({ success: true, status: 'pending', communityName: name });
+
   } catch (err) {
     console.error('joinCommunity error:', err);
     return res.status(500).json({ success: false, message: 'Server error' });

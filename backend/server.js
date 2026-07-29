@@ -36,11 +36,11 @@ const storage = multer.diskStorage({
 });
 const upload = multer({ storage: storage });
 
-// In-memory data store for Prototype
+// In-memory data store for Prototype (fallback when MongoDB is not connected)
 const users = [
-    { id: 1, email: 'user@test.com', password: 'password', role: 'user', name: 'John Doe', flat: 'A-101' },
-    { id: 2, email: 'admin@test.com', password: 'password', role: 'admin', name: 'Admin User', flat: 'Admin' },
-    { id: 3, email: 'worker@test.com', password: 'password', role: 'worker', name: 'Bob Builder', flat: 'Worker' }
+    { id: 1, email: 'resident@test.com', password: 'resident123', role: 'resident', name: 'John Doe', flat: 'A-101', communityName: null, communityId: null },
+    { id: 2, email: 'admin@test.com', password: 'admin123', role: 'admin', name: 'Admin User', flat: 'Admin', communityName: null, communityId: null },
+    { id: 3, email: 'worker@test.com', password: 'worker123', role: 'worker', name: 'Bob Builder', flat: 'Worker', communityName: null, communityId: null }
 ];
 
 // MongoDB (Atlas) integration
@@ -48,6 +48,8 @@ const mongoose = require('mongoose');
 const dotenv = require('dotenv');
 const Complaint = require('./models/Complaint');
 
+
+dotenv.config();
 
 const notificationRoutes = require('./routes/notificationRoutes');
 const { createComplaintSubmittedNotification } = require('./services/notificationService');
@@ -57,7 +59,13 @@ const workerAssignmentRoutes = require('./routes/workerAssignmentRoutes');
 const onboardingRoutes = require('./routes/onboardingRoutes');
 const adminResidentRequestsRoutes = require('./routes/adminResidentRequestsRoutes');
 
-dotenv.config();
+// Pass Socket.IO and notification service to controllers
+const { setIO: setWorkerIO, setNotificationService } = require('./controllers/workerController');
+const { setIO: setAssignmentIO } = require('./controllers/workerAssignmentController');
+
+setWorkerIO(io);
+setAssignmentIO(io);
+setNotificationService({ createComplaintSubmittedNotification });
 
 // Notification routes (new)
 app.use(notificationRoutes);
@@ -80,18 +88,52 @@ app.use('/api', adminResidentRequestsRoutes);
 
 const MONGODB_URI = process.env.MONGODB_URI;
 let mongoConnected = false;
+let mongoConnectionAttempted = false;
+let mongodServer = null;
 
-if (!MONGODB_URI) {
-    console.warn('MONGODB_URI is not set. Complaints endpoints will fail until configured.');
-} else {
-    mongoose
-        .connect(MONGODB_URI, { autoIndex: true })
-        .then(() => {
-            mongoConnected = true;
-            console.log('MongoDB connected');
-        })
-        .catch((err) => console.error('MongoDB connection error:', err));
+async function startMongo() {
+    if (!MONGODB_URI) {
+        console.warn('MONGODB_URI is not set. Trying mongodb-memory-server...');
+        await startMemoryMongo();
+        return;
+    }
+
+    try {
+        await mongoose.connect(MONGODB_URI, {
+            autoIndex: true,
+            serverSelectionTimeoutMS: 3000,
+            connectTimeoutMS: 3000,
+        });
+        mongoConnected = true;
+        console.log('MongoDB connected to:', MONGODB_URI);
+    } catch (err) {
+        console.error('MongoDB connection error:', err.message);
+        console.log('Falling back to mongodb-memory-server...');
+        await startMemoryMongo();
+    }
 }
+
+async function startMemoryMongo() {
+    try {
+        const { MongoMemoryServer } = require('mongodb-memory-server');
+        mongodServer = await MongoMemoryServer.create();
+        const uri = mongodServer.getUri();
+        console.log('MongoMemoryServer started at:', uri);
+        await mongoose.connect(uri, {
+            autoIndex: true,
+            serverSelectionTimeoutMS: 5000,
+            connectTimeoutMS: 5000,
+        });
+        mongoConnected = true;
+        console.log('MongoDB connected to in-memory instance');
+    } catch (memErr) {
+        console.error('Failed to start mongodb-memory-server:', memErr.message);
+        console.log('Server will run with in-memory data only.');
+    }
+}
+
+// Start MongoDB connection
+startMongo();
 
 const ensureMongoConnected = (req, res, next) => {
     if (!mongoConnected) {
@@ -113,92 +155,115 @@ app.post('/api/login', async (req, res) => {
 
         const normalizedEmail = String(email).toLowerCase().trim();
 
-        // 1) DB-backed login for CommunityUser (admin/resident/worker)
-        // Keep this non-breaking: if not found, fall back to demo users.
-        const dbUser = await CommunityUser.findOne({ email: normalizedEmail }).lean();
-        if (dbUser) {
-            // community onboarding users store bcrypt hashed passwords
-            const bcrypt = require('bcryptjs');
-            const ok = await bcrypt.compare(password, dbUser.password);
-            if (!ok) {
-                return res.status(401).json({ success: false, message: 'Invalid credentials' });
-            }
-
-            if (dbUser.status === 'pending') {
-                return res.status(403).json({
-                    success: false,
-                    message: 'Your registration is waiting for Admin approval.'
-                });
-            }
-
-            if (dbUser.status === 'rejected' || dbUser.isActive === false) {
-                return res.status(403).json({
-                    success: false,
-                    message: 'Your registration was rejected by the Community Administrator.'
-                });
-            }
-
-            const userWithoutPassword = {
-                id: dbUser._id?.toString(),
-                fullName: dbUser.fullName,
-                name: dbUser.fullName,
-                role: dbUser.role,
-                block: dbUser.block,
-                flat: dbUser.flatNumber,
-                communityId: dbUser.communityId?.toString(),
-                status: dbUser.status
-            };
-
-            // Attach communityName for dashboard UX (no tenant sharing since it's derived by communityId)
-            try {
-                const Community = require('./models/Community');
-                const community = await Community.findOne({ _id: dbUser.communityId }).lean();
-                if (community?.name) userWithoutPassword.communityName = community.name;
-            } catch (e) {
-                // Ignore; UI will fallback to "Your Society"
-            }
-
-
-            return res.json({ success: true, user: userWithoutPassword });
-        }
-
-        // 2) Existing Worker prototype login (legacy) is not in CommunityUser.
-        // If demo/prototype worker exists in Mongo Worker collection, authenticate it too.
-        // (This won't affect demo in-memory users.)
-        const workerDb = await Worker.findOne({ email: normalizedEmail }).lean();
-        if (workerDb) {
-            const bcrypt = require('bcryptjs');
-            const ok = await bcrypt.compare(password, workerDb.password);
-            if (!ok) {
-                return res.status(401).json({ success: false, message: 'Invalid credentials' });
-            }
-
-            if (workerDb.status?.toLowerCase?.() === 'pending' || workerDb.status === 'Pending') {
-                return res.status(403).json({ success: false, message: 'Your registration is waiting for Admin approval.' });
-            }
-
-            if (workerDb.status?.toLowerCase?.() === 'rejected' || workerDb.isActive === false) {
-                return res.status(403).json({ success: false, message: 'Your registration was rejected by the Community Administrator.' });
-            }
-
-            return res.json({
-                success: true,
-                user: {
-                    id: workerDb._id?.toString(),
-                    name: workerDb.name,
-                    role: 'worker',
-                    workerId: workerDb._id?.toString(),
-                    profession: workerDb.profession,
-                    communityId: workerDb.societyId || null,
-                    status: workerDb.status
+        // PRIORITY 1: If MongoDB is connected, query DB first
+        if (mongoConnected) {
+            // Check CommunityUser collection (admin, resident, onboarded worker)
+            const dbUser = await CommunityUser.findOne({ email: normalizedEmail }).lean();
+            if (dbUser) {
+                const bcrypt = require('bcryptjs');
+                const ok = await bcrypt.compare(password, dbUser.password);
+                if (!ok) {
+                    return res.status(401).json({ success: false, message: 'Invalid credentials' });
                 }
-            });
+
+                if (dbUser.status === 'pending') {
+                    return res.status(403).json({
+                        success: false,
+                        message: 'Your registration is waiting for Admin approval.'
+                    });
+                }
+
+                if (dbUser.status === 'rejected' || dbUser.isActive === false) {
+                    return res.status(403).json({
+                        success: false,
+                        message: 'Your registration was rejected by the Community Administrator.'
+                    });
+                }
+
+                // Lookup community name
+                const Community = require('./models/Community');
+                let communityName = null;
+                try {
+                    const community = await Community.findById(dbUser.communityId).lean();
+                    communityName = community?.name || null;
+                } catch (e) {
+                    console.error(`Community lookup failed for id ${dbUser.communityId}:`, e.message);
+                }
+
+                const userWithoutPassword = {
+                    id: dbUser._id?.toString(),
+                    fullName: dbUser.fullName,
+                    name: dbUser.fullName,
+                    role: dbUser.role,
+                    block: dbUser.block,
+                    flat: dbUser.flatNumber,
+                    communityId: dbUser.communityId?.toString(),
+                    communityName: communityName,
+                    status: dbUser.status
+                };
+
+                return res.json({ success: true, user: userWithoutPassword });
+            }
+
+            // Check Worker collection
+            const workerDb = await Worker.findOne({ email: normalizedEmail }).lean();
+            if (workerDb) {
+                const bcrypt = require('bcryptjs');
+                const ok = await bcrypt.compare(password, workerDb.password);
+                if (!ok) {
+                    return res.status(401).json({ success: false, message: 'Invalid credentials' });
+                }
+
+                if (workerDb.status === 'Pending') {
+                    return res.status(403).json({ success: false, message: 'Your registration is awaiting approval from the Society Admin.' });
+                }
+
+                if (workerDb.status === 'Rejected' || workerDb.isActive === false) {
+                    return res.status(403).json({
+                        success: false,
+                        message: workerDb.rejectionReason
+                            ? `Your registration was rejected: ${workerDb.rejectionReason}`
+                            : 'Your registration was rejected by the Community Administrator.'
+                    });
+                }
+
+                if (workerDb.status === 'Suspended') {
+                    return res.status(403).json({ success: false, message: 'Your account has been suspended. Please contact the Community Administrator.' });
+                }
+
+                const workerCommunityId = workerDb.communityId?.toString?.() || workerDb.societyId || null;
+
+                let workerCommunityName = null;
+                if (workerCommunityId) {
+                    try {
+                        const Community = require('./models/Community');
+                        const community = await Community.findById(workerCommunityId).lean();
+                        workerCommunityName = community?.name || null;
+                    } catch (e) {
+                        console.error(`Worker community lookup failed for id ${workerCommunityId}:`, e.message);
+                    }
+                }
+
+                return res.json({
+                    success: true,
+                    user: {
+                        id: workerDb._id?.toString(),
+                        name: workerDb.name,
+                        role: 'worker',
+                        workerId: workerDb._id?.toString(),
+                        profession: workerDb.profession,
+                        communityId: workerCommunityId,
+                        communityName: workerCommunityName,
+                        status: workerDb.status
+                    }
+                });
+            }
         }
 
-        // 3) Fallback to in-memory demo users for Spirit 1/2 compatibility
-        const user = users.find(u => u.email === email && u.password === password);
-        if (user) {
-            const { password, ...userWithoutPassword } = user;
+        // PRIORITY 2: Fallback to in-memory demo users (MongoDB not connected, or user not found in DB)
+        const demoUser = users.find(u => u.email === email && u.password === password);
+        if (demoUser) {
+            const { password: _, ...userWithoutPassword } = demoUser;
             return res.json({ success: true, user: userWithoutPassword });
         }
 
@@ -261,8 +326,6 @@ app.post(
                 createdAt: new Date().toISOString()
             };
 
-            console.log("NEW COMPLAINT:");
-            console.log(newComplaint);
             const saved = await Complaint.create(newComplaint);
 
             // Create a role-based notification for Admins and emit via Socket.IO (real-time).
@@ -302,7 +365,6 @@ app.post(
 // Get Complaints API (community-scoped)
 app.get('/api/complaints', ensureMongoConnected, async (req, res) => {
     const { userId, role } = req.query;
-    console.log("GET /api/complaints route reached");
 
     let query = {};
     let scopeCommunityId = null;
@@ -311,22 +373,45 @@ app.get('/api/complaints', ensureMongoConnected, async (req, res) => {
         if (!userId) {
             return res.status(403).json({ success: false, message: 'Forbidden: community isolation' });
         }
-        const userDoc = await CommunityUser.findOne({ _id: userId, role: 'resident' }).lean();
-        scopeCommunityId = userDoc?.communityId?.toString?.() || null;
-        if (!scopeCommunityId) {
-            return res.status(403).json({ success: false, message: 'Forbidden: community isolation' });
+        // Look up the resident's community. Use try/catch because userId may be
+        // a numeric string (from demo users like "1") which is not a valid ObjectId.
+        try {
+            const userDoc = await CommunityUser.findOne({ _id: userId, role: 'resident' }).lean();
+            scopeCommunityId = userDoc?.communityId?.toString?.() || null;
+        } catch (lookupErr) {
+            scopeCommunityId = null;
         }
-        // Resident: only their own complaints
-        query = { communityId: scopeCommunityId, userId: userId, status: { $in: ['Submitted','Verified','Assigned','Assigned to Worker','Work In Progress','Completed','Work In Progress'] } };
-        // If older docs store numeric userId, fall back to filtering by userName/flat/userId is not safe.
-        // Keep backward compatibility by also allowing legacy numeric userId match when needed.
-        query = {
-            communityId: scopeCommunityId,
-            $or: [
-                { userId: Number(userId) },
-                { userId: userId }
-            ]
-        };
+        if (!scopeCommunityId) {
+            // Fallback (demo users like { id: 1 } have no communityId).
+            // Query by userId only, without community scoping.
+            // Use parseInt to match how POST /api/complaints stores userId (parseInt(userId)).
+            query = {
+                $or: [
+                    { userId: parseInt(userId) },
+                    { userId: userId }
+                ]
+            };
+            const filteredComplaints = await Complaint.find(query).sort({ date: -1 }).lean();
+            return res.json({ success: true, complaints: filteredComplaints });
+        }
+        // Use parseInt to extract any leading numeric portion from ObjectId strings,
+        // matching how POST /api/complaints stores userId (parseInt(userId)).
+        // Only include the raw userId string in the $or if it's numeric (for demo users),
+        // otherwise Mongoose will throw CastError since the schema defines userId as Number.
+        const parsedUserId = parseInt(userId);
+        const isNumericString = /^\d+$/.test(userId);
+        if (isNumericString) {
+            query = {
+                communityId: scopeCommunityId,
+                $or: [
+                    { userId: parsedUserId },
+                    { userId: userId }
+                ]
+            };
+        } else {
+            // Real onboarded users have ObjectId strings; only query by parsed numeric portion.
+            query = { communityId: scopeCommunityId, userId: parsedUserId };
+        }
     } else if (role === 'worker') {
         if (!userId) {
             return res.status(403).json({ success: false, message: 'Forbidden: community isolation' });
@@ -502,7 +587,7 @@ app.get('/api/settings/map', ensureMongoConnected, async (req, res) => {
         res.json({
             success: true,
             mapUrl: mapFilename
-                ? `https://community-connect-backend-wqwc.onrender.com/uploads/${mapFilename}`
+                ? `/uploads/${mapFilename}`
                 : null
         });
     } catch (error) {
@@ -529,7 +614,7 @@ app.post('/api/settings/map', ensureMongoConnected, upload.single('mapImage'), a
             await Community.findByIdAndUpdate(xCommunityId, { mapFilename: req.file.filename });
             res.json({
                 success: true,
-                mapUrl: `https://community-connect-backend-wqwc.onrender.com/uploads/${req.file.filename}`
+                mapUrl: `/uploads/${req.file.filename}`
             });
         } else {
             res.status(400).json({ success: false, message: 'No image provided' });
@@ -579,4 +664,3 @@ const PORT = 5001;
 server.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
 });
-

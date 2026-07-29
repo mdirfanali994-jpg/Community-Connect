@@ -16,6 +16,8 @@ const createComplaintSubmittedNotification = async ({ complaint }) => {
     complaintText: complaint?.text ?? '',
     complaintStatus: complaint?.status ?? '',
 
+    communityId: complaint?.communityId ?? null,
+
     read: false,
     createdAt: new Date()
   });
