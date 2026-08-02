@@ -3,7 +3,7 @@ const getEnv = (key) => {
   return v === undefined ? undefined : v;
 };
 
-console.log("VITE_API_BASE_URL:", import.meta.env.VITE_API_BASE_URL);
+
 
 export const API_BASE_URL =
   getEnv("VITE_API_BASE_URL") ||
