@@ -154,14 +154,20 @@ app.post('/api/login', async (req, res) => {
         }
 
         const normalizedEmail = String(email).toLowerCase().trim();
-
+        console.log("========== LOGIN REQUEST ==========");
+        console.log("EMAIL RECEIVED:", normalizedEmail);
+        console.log("PASSWORD RECEIVED:", password);
+         
         // PRIORITY 1: If MongoDB is connected, query DB first
         if (mongoConnected) {
             // Check CommunityUser collection (admin, resident, onboarded worker)
             const dbUser = await CommunityUser.findOne({ email: normalizedEmail }).lean();
+            console.log("DB USER FOUND:", dbUser);
             if (dbUser) {
                 const bcrypt = require('bcryptjs');
+                console.log("HASH FROM DB:", dbUser.password);
                 const ok = await bcrypt.compare(password, dbUser.password);
+                console.log("PASSWORD MATCH:", ok);
                 if (!ok) {
                     return res.status(401).json({ success: false, message: 'Invalid credentials' });
                 }
