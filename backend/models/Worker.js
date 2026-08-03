@@ -5,8 +5,14 @@ const workerSchema = new mongoose.Schema(
     societyId: { type: String, default: null },
     name: { type: String, required: true, trim: true },
     mobileNumber: { type: String, required: true, trim: true },
-    email: { type: String, required: true, unique: true, lowercase: true, trim: true, index: true },
+email: { type: String, required: true, unique: true, lowercase: true, trim: true, index: true },
+
+    // Profession (backward compatible, required)
     profession: { type: String, required: true },
+
+    // Worker role (for role-based dashboards, e.g. security_guard, cleaner, electrician)
+    // Defaults to profession for backward compatibility.
+    role: { type: String, default: null, index: true },
 
     // Enhanced worker profile fields
     skills: { type: [String], default: [] }, // Electrician, Plumber, Carpenter, etc.

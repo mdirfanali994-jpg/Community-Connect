@@ -50,6 +50,10 @@ router.post('/api/workers', createWorker);
 // Get single worker by ID (must come after static paths)
 router.get('/api/workers/:workerId', getWorkerById);
 
+// Get worker role info (for role-based dashboards)
+const { getWorkerRole } = require('../controllers/visitorController');
+router.get('/api/workers/:workerId/role', getWorkerRole);
+
 // Admin: update worker status (approve/reject/suspend/activate)
 router.put('/api/workers/:workerId/status', updateWorkerStatus);
 

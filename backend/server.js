@@ -58,13 +58,17 @@ const workerAssignmentRoutes = require('./routes/workerAssignmentRoutes');
 
 const onboardingRoutes = require('./routes/onboardingRoutes');
 const adminResidentRequestsRoutes = require('./routes/adminResidentRequestsRoutes');
+const financeRoutes = require('./routes/financeRoutes');
+const visitorRoutes = require('./routes/visitorRoutes');
 
 // Pass Socket.IO and notification service to controllers
 const { setIO: setWorkerIO, setNotificationService } = require('./controllers/workerController');
 const { setIO: setAssignmentIO } = require('./controllers/workerAssignmentController');
+const { setIO: setVisitorIO } = require('./controllers/visitorController');
 
 setWorkerIO(io);
 setAssignmentIO(io);
+setVisitorIO(io);
 setNotificationService({ createComplaintSubmittedNotification });
 
 // Notification routes (new)
@@ -76,6 +80,10 @@ app.use(workerRoutes);
 // Worker assignment routes (new)
 app.use(workerAssignmentRoutes);
 
+// Visitor management routes (Phase 4, Module 2)
+// Routes define full /api/visitors paths internally.
+app.use(visitorRoutes);
+
 // Society onboarding routes (new)
 // IMPORTANT: onboardingRoutes already defines paths like /create-community and /join-community.
 // Mount under /api/onboarding to match frontend calls.
@@ -85,6 +93,10 @@ app.use('/api/onboarding', onboardingRoutes);
 // Admin resident request approval routes (new)
 // Keep all admin approval REST endpoints under /api to match frontend calls.
 app.use('/api', adminResidentRequestsRoutes);
+
+// Finance & Maintenance routes (Phase 4, Module 1)
+// Routes define full /api/finance paths internally.
+app.use(financeRoutes);
 
 const MONGODB_URI = process.env.MONGODB_URI;
 let mongoConnected = false;
@@ -237,7 +249,11 @@ app.post('/api/login', async (req, res) => {
                     return res.status(403).json({ success: false, message: 'Your account has been suspended. Please contact the Community Administrator.' });
                 }
 
-                const workerCommunityId = workerDb.communityId?.toString?.() || workerDb.societyId || null;
+const workerCommunityId = workerDb.communityId?.toString?.() || workerDb.societyId || null;
+
+                // Determine worker role (for role-based dashboards)
+                const { professionToRole } = require('./constants/workerRoles');
+                const workerRole = workerDb.role || professionToRole(workerDb.profession);
 
                 let workerCommunityName = null;
                 if (workerCommunityId) {
@@ -258,6 +274,7 @@ app.post('/api/login', async (req, res) => {
                         role: 'worker',
                         workerId: workerDb._id?.toString(),
                         profession: workerDb.profession,
+                        workerRole,
                         communityId: workerCommunityId,
                         communityName: workerCommunityName,
                         status: workerDb.status

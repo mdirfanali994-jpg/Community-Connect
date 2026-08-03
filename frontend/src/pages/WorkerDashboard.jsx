@@ -4,9 +4,11 @@ import axios from 'axios';
 import {
   Briefcase, CheckCircle, Clock, AlertCircle, CheckSquare,
   ChevronRight, User, Wrench, MapPin, Calendar, FileText,
-  Activity, Star, ThumbsUp, Play, Send, XCircle, ToggleLeft, ToggleRight
+  Activity, Star, ThumbsUp, Play, Send, XCircle, ToggleLeft, ToggleRight,
+  Shield
 } from 'lucide-react';
 import { API_BASE_URL } from '../config/api';
+import VisitorSecurityDashboard from './VisitorSecurityDashboard';
 
 const STATUS_STYLES = {
   'Assigned': 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 border-blue-200 dark:border-blue-800',
@@ -125,7 +127,16 @@ const WorkerDashboard = () => {
     total: complaints.length
   };
 
+// Determine worker role for dashboard switching
+  const workerRole = user?.workerRole || workerData?.role || null;
+  const isSecurityGuard = workerRole === 'security_guard';
+
   if (loading) return <div className="text-center py-20 text-gray-500 animate-pulse">Loading Dashboard...</div>;
+
+  // Security Guard gets the Security Dashboard
+  if (isSecurityGuard) {
+    return <VisitorSecurityDashboard />;
+  }
 
   return (
     <div className="space-y-6 animate-fade-in transition-colors duration-300">

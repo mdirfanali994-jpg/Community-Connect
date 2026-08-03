@@ -14,6 +14,10 @@ import OnboardingLanding from './pages/OnboardingLanding';
 import CreateCommunity from './pages/CreateCommunity';
 import JoinCommunity from './pages/JoinCommunity';
 import WorkerRegistration from './pages/WorkerRegistration';
+import AdminFinance from './pages/AdminFinance';
+import ResidentFinance from './pages/ResidentFinance';
+import AdminVisitors from './pages/AdminVisitors';
+import ResidentVisitors from './pages/ResidentVisitors';
 
 function App() {
   const [isDark, setIsDark] = useState(() => {
@@ -74,9 +78,13 @@ function App() {
                 <Route path="/onboarding/create-community" element={<CreateCommunity />} />
                 <Route path="/onboarding/join-community" element={<JoinCommunity />} />
                 <Route path="/onboarding/join-worker" element={<WorkerRegistration />} />
-                <Route path="/login" element={<Login />} />
+<Route path="/login" element={<Login />} />
                 <Route path="/user/dashboard" element={<UserDashboard />} />
+                <Route path="/user/finance" element={<ResidentFinance />} />
+                <Route path="/user/visitors" element={<ResidentVisitors />} />
                 <Route path="/admin/dashboard" element={<AdminDashboard />} />
+                <Route path="/admin/finance" element={<AdminFinance />} />
+                <Route path="/admin/visitors" element={<AdminVisitors />} />
                 <Route path="/worker/dashboard" element={<WorkerDashboard />} />
                 <Route path="/worker/work/:complaintId" element={<WorkTrackPage />} />
                 <Route path="/worker/profile" element={<WorkerProfile />} />

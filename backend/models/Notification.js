@@ -11,6 +11,21 @@ const notificationSchema = new mongoose.Schema(
 
     complaintId: { type: String, default: null, index: true },
 
+    // Generic entity linking (used by finance and future modules)
+    entityType: { type: String, default: null, index: true }, // e.g. 'maintenance_bill', 'maintenance_expense'
+    entityId: { type: String, default: null, index: true },
+    action: { type: String, default: null }, // e.g. 'bill_generated', 'expense_added', 'payment_made'
+    metadata: { type: mongoose.Schema.Types.Mixed, default: {} },
+
+    // Recipient (optional) — when a notification is for a specific user
+    recipientId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'CommunityUser',
+      default: null,
+      index: true,
+    },
+    recipientName: { type: String, default: '' },
+
     // For UI rendering (keeps Notification model self-contained)
     residentName: { type: String, default: '' },
     flatNumber: { type: String, default: '' },
