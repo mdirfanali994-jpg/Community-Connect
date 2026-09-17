@@ -60,15 +60,29 @@ const onboardingRoutes = require('./routes/onboardingRoutes');
 const adminResidentRequestsRoutes = require('./routes/adminResidentRequestsRoutes');
 const financeRoutes = require('./routes/financeRoutes');
 const visitorRoutes = require('./routes/visitorRoutes');
+const packageRoutes = require('./routes/packageRoutes');
+const noticeRoutes = require('./routes/noticeRoutes');
+const eventRoutes = require('./routes/eventRoutes');
+const pollRoutes = require('./routes/pollRoutes');
 
 // Pass Socket.IO and notification service to controllers
 const { setIO: setWorkerIO, setNotificationService } = require('./controllers/workerController');
 const { setIO: setAssignmentIO } = require('./controllers/workerAssignmentController');
 const { setIO: setVisitorIO } = require('./controllers/visitorController');
+const { setIO: setPackageIO } = require('./controllers/packageController');
+const { setIO: setNoticeIO } = require('./controllers/noticeController');
+const { setIO: setEventIO } = require('./controllers/eventController');
+const { setIO: setPollIO } = require('./controllers/pollController');
+const { setIO: setCommunityIO } = require('./services/communityService');
 
 setWorkerIO(io);
 setAssignmentIO(io);
 setVisitorIO(io);
+setPackageIO(io);
+setNoticeIO(io);
+setEventIO(io);
+setPollIO(io);
+setCommunityIO(io);
 setNotificationService({ createComplaintSubmittedNotification });
 
 // Notification routes (new)
@@ -83,6 +97,22 @@ app.use(workerAssignmentRoutes);
 // Visitor management routes (Phase 4, Module 2)
 // Routes define full /api/visitors paths internally.
 app.use(visitorRoutes);
+
+// Package management routes (Phase 5, Module 1)
+// Routes define full /api/packages paths internally.
+app.use(packageRoutes);
+
+// Notice board routes (Phase 5, Module 2)
+// Routes define full /api/notices paths internally.
+app.use(noticeRoutes);
+
+// Event management routes (Phase 5, Module 3)
+// Routes define full /api/events paths internally.
+app.use(eventRoutes);
+
+// Community poll routes (Phase 5, Module 4)
+// Routes define full /api/polls paths internally.
+app.use(pollRoutes);
 
 // Society onboarding routes (new)
 // IMPORTANT: onboardingRoutes already defines paths like /create-community and /join-community.

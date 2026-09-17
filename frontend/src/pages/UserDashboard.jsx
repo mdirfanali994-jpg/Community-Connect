@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 
 import { useNavigate, Link } from 'react-router-dom';
 import axios from 'axios';
-import { Mic, MicOff, Image as ImageIcon, MapPin, Send, AlertCircle, CheckCircle, User, Phone, Star, ThumbsUp, RotateCcw, Clock, Calendar, Camera, Wallet, Shield } from 'lucide-react';
+import { Mic, MicOff, Image as ImageIcon, MapPin, Send, AlertCircle, CheckCircle, User, Phone, Star, ThumbsUp, RotateCcw, Clock, Calendar, Camera, Wallet, Shield, Package, Megaphone, CalendarDays, BarChart3 } from 'lucide-react';
 import { MapContainer, Marker, useMapEvents, TileLayer } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -350,8 +350,8 @@ const UserDashboard = () => {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Module Navigation Card */}
-        <div className="lg:col-span-3 grid grid-cols-1 sm:grid-cols-3 gap-4">
+{/* Module Navigation Card */}
+        <div className="lg:col-span-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4">
           <Link
             to="/user/finance"
             className="group flex items-center gap-4 bg-white/80 dark:bg-gray-900/60 backdrop-blur-xl p-5 rounded-3xl border border-gray-200 dark:border-gray-800 hover:border-primary/30 dark:hover:border-primary/40 transition-all hover:shadow-lg hover:shadow-primary/5"
@@ -365,7 +365,7 @@ const UserDashboard = () => {
             </div>
           </Link>
 
-          <Link
+<Link
             to="/user/visitors"
             className="group flex items-center gap-4 bg-white/80 dark:bg-gray-900/60 backdrop-blur-xl p-5 rounded-3xl border border-gray-200 dark:border-gray-800 hover:border-primary/30 dark:hover:border-primary/40 transition-all hover:shadow-lg hover:shadow-primary/5"
           >
@@ -375,6 +375,58 @@ const UserDashboard = () => {
             <div>
               <p className="font-semibold text-gray-900 dark:text-white">Visitor Management</p>
               <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Invite visitors, QR passes & OTP</p>
+            </div>
+          </Link>
+
+          <Link
+            to="/user/packages"
+            className="group flex items-center gap-4 bg-white/80 dark:bg-gray-900/60 backdrop-blur-xl p-5 rounded-3xl border border-gray-200 dark:border-gray-800 hover:border-primary/30 dark:hover:border-primary/40 transition-all hover:shadow-lg hover:shadow-primary/5"
+          >
+            <div className="w-12 h-12 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center transition-all group-hover:scale-110 group-hover:bg-primary/20">
+              <Package className="w-6 h-6 text-primary" />
+            </div>
+            <div>
+              <p className="font-semibold text-gray-900 dark:text-white">My Packages</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Track couriers & confirm pickup</p>
+            </div>
+          </Link>
+
+          <Link
+            to="/user/notices"
+            className="group flex items-center gap-4 bg-white/80 dark:bg-gray-900/60 backdrop-blur-xl p-5 rounded-3xl border border-gray-200 dark:border-gray-800 hover:border-primary/30 dark:hover:border-primary/40 transition-all hover:shadow-lg hover:shadow-primary/5"
+          >
+            <div className="w-12 h-12 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center transition-all group-hover:scale-110 group-hover:bg-primary/20">
+              <Megaphone className="w-6 h-6 text-primary" />
+            </div>
+            <div>
+              <p className="font-semibold text-gray-900 dark:text-white">Notice Board</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Announcements & community updates</p>
+            </div>
+          </Link>
+
+          <Link
+            to="/user/events"
+            className="group flex items-center gap-4 bg-white/80 dark:bg-gray-900/60 backdrop-blur-xl p-5 rounded-3xl border border-gray-200 dark:border-gray-800 hover:border-primary/30 dark:hover:border-primary/40 transition-all hover:shadow-lg hover:shadow-primary/5"
+          >
+            <div className="w-12 h-12 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center transition-all group-hover:scale-110 group-hover:bg-primary/20">
+              <CalendarDays className="w-6 h-6 text-primary" />
+            </div>
+            <div>
+              <p className="font-semibold text-gray-900 dark:text-white">Events</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Meetings, festivals & RSVP</p>
+            </div>
+          </Link>
+
+          <Link
+            to="/user/polls"
+            className="group flex items-center gap-4 bg-white/80 dark:bg-gray-900/60 backdrop-blur-xl p-5 rounded-3xl border border-gray-200 dark:border-gray-800 hover:border-primary/30 dark:hover:border-primary/40 transition-all hover:shadow-lg hover:shadow-primary/5"
+          >
+            <div className="w-12 h-12 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center transition-all group-hover:scale-110 group-hover:bg-primary/20">
+              <BarChart3 className="w-6 h-6 text-primary" />
+            </div>
+            <div>
+              <p className="font-semibold text-gray-900 dark:text-white">Community Polls</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Vote & see live results</p>
             </div>
           </Link>
         </div>

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
-import { BarChart, CheckCircle, Clock, Trash2, Wrench, XCircle, UserCheck, UserX, Search, ToggleLeft, ToggleRight, Star, Shield, User, Phone, Mail, Briefcase, Filter, Wallet } from 'lucide-react';
+import { BarChart, CheckCircle, Clock, Trash2, Wrench, XCircle, UserCheck, UserX, Search, ToggleLeft, ToggleRight, Star, Shield, User, Phone, Mail, Briefcase, Filter, Wallet, Package, Megaphone, CalendarDays, BarChart3 } from 'lucide-react';
 import NotificationBell from '../components/NotificationBell';
 import { connectAsRole } from '../services/socket';
 import { API_BASE_URL } from '../config/api';
@@ -465,12 +465,44 @@ const AdminDashboard = () => {
             Finance
           </button>
 
-          <button 
+<button 
             onClick={() => navigate('/admin/visitors')}
             className="flex items-center text-sm font-medium text-primary hover:text-primary-dark bg-primary/10 hover:bg-primary/20 border border-primary/20 px-4 py-2 rounded-xl transition-all"
           >
             <Shield className="w-4 h-4 mr-1.5" />
             Visitors
+          </button>
+
+<button 
+            onClick={() => navigate('/admin/packages')}
+            className="flex items-center text-sm font-medium text-primary hover:text-primary-dark bg-primary/10 hover:bg-primary/20 border border-primary/20 px-4 py-2 rounded-xl transition-all"
+          >
+            <Package className="w-4 h-4 mr-1.5" />
+            Packages
+          </button>
+
+          <button 
+            onClick={() => navigate('/admin/notices')}
+            className="flex items-center text-sm font-medium text-primary hover:text-primary-dark bg-primary/10 hover:bg-primary/20 border border-primary/20 px-4 py-2 rounded-xl transition-all"
+          >
+            <Megaphone className="w-4 h-4 mr-1.5" />
+            Notices
+          </button>
+
+          <button 
+            onClick={() => navigate('/admin/events')}
+            className="flex items-center text-sm font-medium text-primary hover:text-primary-dark bg-primary/10 hover:bg-primary/20 border border-primary/20 px-4 py-2 rounded-xl transition-all"
+          >
+            <CalendarDays className="w-4 h-4 mr-1.5" />
+            Events
+          </button>
+
+          <button 
+            onClick={() => navigate('/admin/polls')}
+            className="flex items-center text-sm font-medium text-primary hover:text-primary-dark bg-primary/10 hover:bg-primary/20 border border-primary/20 px-4 py-2 rounded-xl transition-all"
+          >
+            <BarChart3 className="w-4 h-4 mr-1.5" />
+            Polls
           </button>
 
           <NotificationBell

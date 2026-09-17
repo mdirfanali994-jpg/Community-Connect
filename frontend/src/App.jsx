@@ -18,6 +18,15 @@ import AdminFinance from './pages/AdminFinance';
 import ResidentFinance from './pages/ResidentFinance';
 import AdminVisitors from './pages/AdminVisitors';
 import ResidentVisitors from './pages/ResidentVisitors';
+import SecurityPackages from './pages/SecurityPackages';
+import ResidentPackages from './pages/ResidentPackages';
+import AdminPackages from './pages/AdminPackages';
+import NoticeBoard from './pages/NoticeBoard';
+import AdminNotices from './pages/AdminNotices';
+import Events from './pages/Events';
+import AdminEvents from './pages/AdminEvents';
+import Polls from './pages/Polls';
+import AdminPolls from './pages/AdminPolls';
 
 function App() {
   const [isDark, setIsDark] = useState(() => {
@@ -82,12 +91,21 @@ function App() {
                 <Route path="/user/dashboard" element={<UserDashboard />} />
                 <Route path="/user/finance" element={<ResidentFinance />} />
                 <Route path="/user/visitors" element={<ResidentVisitors />} />
-                <Route path="/admin/dashboard" element={<AdminDashboard />} />
+<Route path="/admin/dashboard" element={<AdminDashboard />} />
                 <Route path="/admin/finance" element={<AdminFinance />} />
                 <Route path="/admin/visitors" element={<AdminVisitors />} />
+<Route path="/admin/packages" element={<AdminPackages />} />
+                <Route path="/admin/notices" element={<AdminNotices />} />
+                <Route path="/admin/events" element={<AdminEvents />} />
+                <Route path="/admin/polls" element={<AdminPolls />} />
                 <Route path="/worker/dashboard" element={<WorkerDashboard />} />
                 <Route path="/worker/work/:complaintId" element={<WorkTrackPage />} />
                 <Route path="/worker/profile" element={<WorkerProfile />} />
+                <Route path="/worker/packages" element={<SecurityPackages />} />
+                <Route path="/user/packages" element={<ResidentPackages />} />
+                <Route path="/user/notices" element={<NoticeBoard />} />
+                <Route path="/user/events" element={<Events />} />
+                <Route path="/user/polls" element={<Polls />} />
                 <Route path="/public-board" element={<PublicBoard />} />
                 <Route path="/map" element={<CommunityMap />} />
               </Routes>

@@ -36,7 +36,7 @@ const [filter, setFilter] = useState('all');
   const [scanAction, setScanAction] = useState(null);
   const [scanMessage, setScanMessage] = useState('');
   const [scanLoading, setScanLoading] = useState(false);
-  const navigate = useNavigate();
+const navigate = useNavigate();
 
   const showFlash = useCallback((msg, type = 'success') => {
     setFlashMsg({ msg, type });
@@ -248,6 +248,13 @@ case 'reject': {
           </div>
         </div>
 <div className="relative z-10 flex items-center gap-3 mt-3 sm:mt-0">
+          <button
+            onClick={() => navigate('/worker/packages')}
+            className="flex items-center px-4 py-2 bg-primary/10 text-primary border border-primary/20 rounded-xl text-sm font-semibold transition-all"
+          >
+            <Package className="w-4 h-4 mr-2" />
+            Packages
+          </button>
           <button
             onClick={() => setShowScanner(true)}
             className="flex items-center px-4 py-2 bg-primary hover:bg-primary-dark text-white rounded-xl text-sm font-semibold transition-all"

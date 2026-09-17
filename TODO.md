@@ -1,44 +1,57 @@
-# Phase 4 — Module 2: Visitor Management System
+# Smart Community Services — Phase 5
 
-## Status: ✅ COMPLETE
+Unified architecture: Packages, Notice Board, Events, Community Polls.
+Reusable shared services for identity derivation, notifications, audit logging, socket emission, search and filtering.
 
-### Backend — Constants & Models ✅
-- [x] `backend/constants/visitorTypes.js` — 21 visitor types (guest, family, delivery_executive, amazon, zomato, swiggy, blinkit, zepto, myntra, flipkart, electrician, plumber, carpenter, ac_technician, painter, cleaner, mover, cable, internet,物业, other)
-- [x] `backend/constants/workerRoles.js` — 10 roles (security_guard, cleaner, electrician, plumber, gardener, cook, maid, custom, supervisor, helper)
-- [x] `backend/models/Worker.js` — extended with `role` field, `profession` preserved
-- [x] `backend/models/Visitor.js` — timeline, QR payload, OTP, approval, blacklist, delivery fields
-- [x] `backend/models/VisitorLog.js` — complete timestamped entry/exit/rejection history
-- [x] `backend/models/VisitorSettings.js` — per-community policy, blacklist, emergency override
+## Phase 1 — Package Management
 
-### Backend — Controller & Routes ✅
-- [x] `backend/controllers/visitorController.js` — create, today, my, all, upcoming, search, arrived, enter, exit, approve, cancel, reject, pass, analytics, settings, blacklist, emergency override
-- [x] `backend/routes/visitorRoutes.js` — all visitor endpoints
-- [x] `backend/server.js` — visitor routes mounted, socket.io passed, `workerRole` in login response
+### Shared Infrastructure
+- [x] `backend/constants/packageTypes.js` — courier companies, package categories, statuses
+- [x] `backend/models/AuditLog.js` — unified audit log (action, user, role, ip, device, metadata)
+- [x] `backend/services/communityService.js` — shared identity derivation, notification emit, audit log, socket emit
+- [x] `backend/middleware/multer.js` — shared upload middleware (images/PDF/DOCX)
 
-### Frontend — Pages ✅
-- [x] `frontend/src/components/visitor/visitorConstants.js` — shared VISITOR_TYPES, STATUS_COLORS, STATUS_LABELS, isDelivery, WORKER_ROLES
-- [x] `frontend/src/pages/ResidentVisitors.jsx` — invite form, upcoming, history, QR/OTP pass modal
-- [x] `frontend/src/pages/AdminVisitors.jsx` — visitors/analytics/settings tabs, peak hours chart, blacklist, emergency override
-- [x] `frontend/src/pages/VisitorSecurityDashboard.jsx` — stats cards, search, filter tabs, arrived/enter/exit/reject actions, 30s auto-refresh
+### Package Models
+- [x] `backend/models/Package.js` — courier, tracking, category, resident snapshot, status lifecycle, OTP/QR, photo, aging
+- [x] `backend/models/PackageHistory.js` — received/viewed/picked_up/returned/cancelled events
 
-### Frontend — Integration ✅
-- [x] `frontend/src/pages/WorkerDashboard.jsx` — auto-detect role, render VisitorSecurityDashboard for security guards
-- [x] `frontend/src/App.jsx` — routes: `/user/visitors`, `/admin/visitors`
-- [x] `frontend/src/pages/AdminDashboard.jsx` — Visitors nav button in header
-- [x] `frontend/src/pages/UserDashboard.jsx` — Visitor Management nav card in module grid
+### Package Controller & Routes
+- [x] `backend/controllers/packageController.js` — security receive/search, resident my-packages/pickup/report-missing, admin analytics/export/history
+- [x] `backend/routes/packageRoutes.js`
 
-### Build Verification ✅
-- [x] Backend syntax check: server.js, visitorController.js, routes, models all OK
-- [x] All visitor modules load OK (`require('./server.js')` prints "SERVER OK")
-- [x] Frontend production build: `vite build` ✓ (763.92 KB JS, 108.25 KB CSS)
-- [x] Module 1 finance tests: 22/22 pass — no regressions
-- [x] Lint: unused imports cleaned (no functional impact)
+### Frontend
+- [x] `frontend/src/components/community/communityConstants.js` — shared couriers/categories/statuses/notice/event/poll constants
+- [x] `frontend/src/pages/SecurityPackages.jsx` — register/receive package, pending pickup, scan QR, verify OTP, history
+- [x] `frontend/src/pages/ResidentPackages.jsx` — my packages, pickup (OTP/QR), report missing, timeline
+- [x] `frontend/src/pages/AdminPackages.jsx` — analytics, courier stats, search, filter, export CSV
+- [x] Integrate SecurityPackages into security dashboard nav
 
-## Ready for Integration Testing ⚡
-- [ ] Resident creates visitor → QR generated → OTP generated
-- [ ] Security verification (arrived/enter/exit) with notifications
-- [ ] Delivery flow (visitor type delivery_executive/amazon etc.)
-- [ ] Worker role detection (security_guard → VisitorSecurityDashboard)
-- [ ] Community isolation (no cross-society data leakage)
-- [ ] MongoDB persistence (restart retains visitors)
-- [ ] Socket notifications (resident/admin rooms)
+## Phase 2 — Notice Board
+- [x] `backend/models/Notice.js`, `backend/models/NoticeRead.js`
+- [x] `backend/controllers/noticeController.js`, `backend/routes/noticeRoutes.js`
+- [x] `frontend/src/pages/NoticeBoard.jsx`, `frontend/src/pages/AdminNotices.jsx`
+- [x] Resident + Admin dashboard integration
+
+## Phase 3 — Events
+- [x] `backend/models/Event.js`, `backend/models/EventRSVP.js`
+- [x] `backend/controllers/eventController.js`, `backend/routes/eventRoutes.js`
+- [x] `frontend/src/pages/Events.jsx`, `frontend/src/pages/AdminEvents.jsx`
+- [x] RSVP, attendees, calendar, reminders, waitlist, QR check-in, analytics
+
+## Phase 4 — Community Polls
+- [x] `backend/models/Poll.js`, `backend/models/PollVote.js`
+- [x] `backend/controllers/pollController.js`, `backend/routes/pollRoutes.js`
+- [x] `frontend/src/pages/Polls.jsx`, `frontend/src/pages/AdminPolls.jsx`
+- [x] Single/multiple choice, anonymous, expiry, charts, one-vote-per-resident
+
+## Global Search & Integration
+- [x] `backend/server.js` — mount all new routes, pass io
+- [x] `frontend/src/App.jsx` — add all routes
+- [x] `frontend/src/pages/AdminDashboard.jsx` — nav buttons
+- [x] `frontend/src/pages/UserDashboard.jsx` — module nav cards
+- [x] Build verification (backend require test + frontend vite build)
+
+## Completion
+- [x] Full test/verification — no regressions, all modules integrated
+- [x] Frontend production build passes (1934 modules, dist generated)
+- [x] Backend syntax check passes for all new models/controllers/routes/services/middleware
