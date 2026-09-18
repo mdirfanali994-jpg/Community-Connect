@@ -523,19 +523,100 @@ const completeComplaint = async (req, res) => {
 /**
  * Resident: Approve completion
  */
+
 const residentApproveCompletion = async (req, res) => {
   try {
     const { id } = req.params;
     const { userId, review } = req.body;
 
     if (!userId) {
-      return res.status(400).json({ success: false, message: 'userId is required' });
+      return res.status(400).json({
+        success: false,
+        message: 'userId is required'
+      });
     }
+
+    // Find the complaint without querying the Number-typed userId field.
+    const existingComplaint = await Complaint.findOne({ id }).lean();
+
+    if (!existingComplaint) {
+      return res.status(404).json({
+        success: false,
+        message: 'Complaint not found'
+      });
+    }
+
+    // Verify the requester is a valid resident.
+    const resident = await CommunityUser.findOne({
+      _id: userId,
+      role: 'resident',
+      isActive: true
+    }).lean();
+
+    if (!resident) {
+      return res.status(403).json({
+        success: false,
+        message: 'Resident not found or inactive'
+      });
+    }
+
+    // Verify community isolation.
+    if (!resident.communityId || !existingComplaint.communityId) {
+      return res.status(403).json({
+        success: false,
+        message: 'Community information is missing'
+      });
+    }
+
+    if (
+      String(resident.communityId) !==
+      String(existingComplaint.communityId)
+    ) {
+      return res.status(403).json({
+        success: false,
+        message: 'Forbidden: complaint belongs to another community'
+      });
+    }
+
+    // Verify this is actually a completed complaint.
+    if (existingComplaint.status !== 'Completed') {
+      return res.status(400).json({
+        success: false,
+        message: `Complaint cannot be approved from status: ${existingComplaint.status}`
+      });
+    }
+
+    /*
+     * Ownership check.
+     *
+     * Newer records may eventually store the real MongoDB user ID.
+     * Older records currently store a numeric legacy userId.
+     *
+     * For legacy records, require BOTH the numeric legacy match
+     * and the resident's name + flat number to match.
+     */
+    const nameMatch =
+  String(existingComplaint.userName || '').trim().toLowerCase() ===
+  String(resident.fullName || '').trim().toLowerCase();
+
+const flatMatch =
+  String(existingComplaint.flatNumber || '').trim() ===
+  String(resident.flatNumber || '').trim();
+
+if (!nameMatch || !flatMatch) {
+  return res.status(403).json({
+    success: false,
+    message: 'Forbidden: complaint does not belong to this resident'
+  });
+}
 
     const now = new Date().toISOString();
 
     const complaint = await Complaint.findOneAndUpdate(
-      { id, userId },
+      {
+        id,
+        status: 'Completed'
+      },
       {
         status: 'Closed',
         'residentConfirmation.status': 'approved',
@@ -543,11 +624,17 @@ const residentApproveCompletion = async (req, res) => {
         'residentConfirmation.review': review || '',
         'timeline.approved': now
       },
-      { new: true, lean: true }
+      {
+        new: true,
+        lean: true
+      }
     );
 
     if (!complaint) {
-      return res.status(404).json({ success: false, message: 'Complaint not found' });
+      return res.status(404).json({
+        success: false,
+        message: 'Complaint not found or already processed'
+      });
     }
 
     await recordStatusHistory({
@@ -559,10 +646,11 @@ const residentApproveCompletion = async (req, res) => {
       communityId: complaint.communityId
     });
 
-    // Notify admin and worker
+    // Notify admin
     await createAndEmitNotification({
       title: 'Complaint Closed',
-      message: 'Resident has approved the completed work. Complaint is now closed.',
+      message:
+        'Resident has approved the completed work. Complaint is now closed.',
       type: 'COMPLAINT_CLOSED',
       targetRole: 'admin',
       complaintId: id,
@@ -573,6 +661,7 @@ const residentApproveCompletion = async (req, res) => {
       flatNumber: complaint.flatNumber
     });
 
+    // Notify worker
     await createAndEmitNotification({
       title: 'Complaint Closed',
       message: 'Resident has approved your work. Complaint closed.',
@@ -586,13 +675,29 @@ const residentApproveCompletion = async (req, res) => {
       flatNumber: complaint.flatNumber
     });
 
-    emitNotification('complaint:updated', complaint, `admin:${complaint.communityId}`);
-    emitNotification('complaint:updated', complaint, `worker:${complaint.communityId}`);
+    emitNotification(
+      'complaint:updated',
+      complaint,
+      `admin:${complaint.communityId}`
+    );
 
-    res.json({ success: true, complaint, message: 'Complaint closed successfully.' });
+    emitNotification(
+      'complaint:updated',
+      complaint,
+      `worker:${complaint.communityId}`
+    );
+
+    res.json({
+      success: true,
+      complaint,
+      message: 'Complaint closed successfully.'
+    });
   } catch (err) {
     console.error('residentApproveCompletion error:', err);
-    res.status(500).json({ success: false, message: 'Server error' });
+    res.status(500).json({
+      success: false,
+      message: 'Server error'
+    });
   }
 };
 
