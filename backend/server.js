@@ -18,6 +18,22 @@ app.use(cors());
 app.use(express.json());
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
+// MongoDB fallback: serve files from DB if not on disk (survives Render restarts)
+const { getFileFromMongo, persistUploadedFiles } = require('./middleware/multer');
+app.use('/uploads', async (req, res, next) => {
+  const filename = req.path.replace(/^\//, '');
+  if (!filename) return next();
+  try {
+    const fileDoc = await getFileFromMongo(filename);
+    if (fileDoc && fileDoc.data) {
+      res.set('Content-Type', fileDoc.mimeType || 'application/octet-stream');
+      res.set('Cache-Control', 'public, max-age=31536000');
+      return res.send(fileDoc.data);
+    }
+  } catch (_) {}
+  next();
+});
+
 // Ensure uploads directory exists
 if (!fs.existsSync(path.join(__dirname, 'uploads'))) {
     fs.mkdirSync(path.join(__dirname, 'uploads'));
@@ -128,6 +144,10 @@ app.use('/api', adminResidentRequestsRoutes);
 // Routes define full /api/finance paths internally.
 app.use(financeRoutes);
 
+// Auth session & token routes (/api/auth/me, /api/logout)
+const authRoutes = require('./routes/authRoutes');
+app.use(authRoutes);
+
 const MONGODB_URI = process.env.MONGODB_URI;
 let mongoConnected = false;
 let mongoConnectionAttempted = false;
@@ -187,6 +207,7 @@ const ensureMongoConnected = (req, res, next) => {
 // Login API (DB-backed for newly onboarded users; fallback to in-memory demo users)
 const CommunityUser = require('./models/CommunityUser');
 const Worker = require('./models/Worker');
+const { createSession } = require('./services/authService');
 
 app.post('/api/login', async (req, res) => {
     try {
@@ -250,7 +271,8 @@ app.post('/api/login', async (req, res) => {
                     status: dbUser.status
                 };
 
-                return res.json({ success: true, user: userWithoutPassword });
+                const { token } = createSession(userWithoutPassword);
+                return res.json({ success: true, token, user: userWithoutPassword });
             }
 
             // Check Worker collection
@@ -279,7 +301,7 @@ app.post('/api/login', async (req, res) => {
                     return res.status(403).json({ success: false, message: 'Your account has been suspended. Please contact the Community Administrator.' });
                 }
 
-const workerCommunityId = workerDb.communityId?.toString?.() || workerDb.societyId || null;
+                const workerCommunityId = workerDb.communityId?.toString?.() || workerDb.societyId || null;
 
                 // Determine worker role (for role-based dashboards)
                 const { professionToRole } = require('./constants/workerRoles');
@@ -296,19 +318,23 @@ const workerCommunityId = workerDb.communityId?.toString?.() || workerDb.society
                     }
                 }
 
+                const workerUser = {
+                    id: workerDb._id?.toString(),
+                    name: workerDb.name,
+                    role: 'worker',
+                    workerId: workerDb._id?.toString(),
+                    profession: workerDb.profession,
+                    workerRole,
+                    communityId: workerCommunityId,
+                    communityName: workerCommunityName,
+                    status: workerDb.status
+                };
+
+                const { token } = createSession(workerUser);
                 return res.json({
                     success: true,
-                    user: {
-                        id: workerDb._id?.toString(),
-                        name: workerDb.name,
-                        role: 'worker',
-                        workerId: workerDb._id?.toString(),
-                        profession: workerDb.profession,
-                        workerRole,
-                        communityId: workerCommunityId,
-                        communityName: workerCommunityName,
-                        status: workerDb.status
-                    }
+                    token,
+                    user: workerUser
                 });
             }
         }
@@ -317,7 +343,8 @@ const workerCommunityId = workerDb.communityId?.toString?.() || workerDb.society
         const demoUser = users.find(u => u.email === email && u.password === password);
         if (demoUser) {
             const { password: _, ...userWithoutPassword } = demoUser;
-            return res.json({ success: true, user: userWithoutPassword });
+            const { token } = createSession(userWithoutPassword);
+            return res.json({ success: true, token, user: userWithoutPassword });
         }
 
         return res.status(401).json({ success: false, message: 'Invalid credentials' });
@@ -333,6 +360,7 @@ app.post(
     '/api/complaints',
     ensureMongoConnected,
     upload.fields([{ name: 'image', maxCount: 1 }, { name: 'voice', maxCount: 1 }]),
+    persistUploadedFiles,
     async (req, res) => {
         try {
     const { text, userId, userName, flatNumber, location } = req.body;
@@ -364,6 +392,7 @@ app.post(
                 id: Date.now().toString(),
                 communityId: derivedCommunityId,
                 userId: parseInt(userId),
+                residentId: userId,
                 userName,
                 flatNumber,
                 text,
@@ -437,34 +466,26 @@ app.get('/api/complaints', ensureMongoConnected, async (req, res) => {
         if (!scopeCommunityId) {
             // Fallback (demo users like { id: 1 } have no communityId).
             // Query by userId only, without community scoping.
-            // Use parseInt to match how POST /api/complaints stores userId (parseInt(userId)).
             query = {
                 $or: [
                     { userId: parseInt(userId) },
-                    { userId: userId }
+                    { userId: userId },
+                    { residentId: userId }
                 ]
             };
             const filteredComplaints = await Complaint.find(query).sort({ date: -1 }).lean();
             return res.json({ success: true, complaints: filteredComplaints });
         }
-        // Use parseInt to extract any leading numeric portion from ObjectId strings,
-        // matching how POST /api/complaints stores userId (parseInt(userId)).
-        // Only include the raw userId string in the $or if it's numeric (for demo users),
-        // otherwise Mongoose will throw CastError since the schema defines userId as Number.
+        // Query by both numeric userId (legacy) and string residentId (current)
         const parsedUserId = parseInt(userId);
-        const isNumericString = /^\d+$/.test(userId);
-        if (isNumericString) {
-            query = {
-                communityId: scopeCommunityId,
-                $or: [
-                    { userId: parsedUserId },
-                    { userId: userId }
-                ]
-            };
-        } else {
-            // Real onboarded users have ObjectId strings; only query by parsed numeric portion.
-            query = { communityId: scopeCommunityId, userId: parsedUserId };
-        }
+        query = {
+            communityId: scopeCommunityId,
+            $or: [
+                { userId: parsedUserId },
+                { userId: userId },
+                { residentId: userId }
+            ]
+        };
     } else if (role === 'worker') {
         if (!userId) {
             return res.status(403).json({ success: false, message: 'Forbidden: community isolation' });
@@ -649,7 +670,7 @@ app.get('/api/settings/map', ensureMongoConnected, async (req, res) => {
     }
 });
 
-app.post('/api/settings/map', ensureMongoConnected, upload.single('mapImage'), async (req, res) => {
+app.post('/api/settings/map', ensureMongoConnected, upload.single('mapImage'), persistUploadedFiles, async (req, res) => {
     try {
         // Require admin identity to set per-society map
         const xAdminId = req.headers['x-admin-id'];

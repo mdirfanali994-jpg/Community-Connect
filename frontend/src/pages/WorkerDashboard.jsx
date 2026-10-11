@@ -8,6 +8,7 @@ import {
   Shield
 } from 'lucide-react';
 import { API_BASE_URL } from '../config/api';
+import { useAuth } from '../context/AuthContext';
 import VisitorSecurityDashboard from './VisitorSecurityDashboard';
 
 const STATUS_STYLES = {
@@ -29,6 +30,7 @@ const WorkerDashboard = () => {
   const [availability, setAvailability] = useState('Available');
   const [actionLoading, setActionLoading] = useState(null);
   const navigate = useNavigate();
+  const { logout } = useAuth();
 
   const getWorkerId = () => {
     const parsed = JSON.parse(localStorage.getItem('user') || '{}');
@@ -143,12 +145,15 @@ const WorkerDashboard = () => {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center bg-white/80 dark:bg-gray-900/60 backdrop-blur-xl p-6 rounded-3xl shadow-sm border border-gray-200 dark:border-gray-800 relative overflow-hidden group transition-colors">
         <div className="absolute top-0 right-0 w-32 h-32 bg-primary/10 rounded-full blur-[40px] group-hover:bg-primary/20 transition-all"></div>
-        <div className="relative z-10 mb-4 sm:mb-0">
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center">
-              <Wrench className="w-6 h-6 text-primary" />
+          <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+            <div className="h-10 sm:h-12 shrink-0 flex items-center">
+              <img
+                src="/assets/community-connect-logo.png"
+                alt="Community Connect"
+                className="h-9 sm:h-11 w-auto object-contain"
+              />
             </div>
-            <div>
+            <div className="sm:border-l sm:border-gray-200 sm:dark:border-gray-800 sm:pl-4">
               <h1 className="text-2xl font-bold text-gray-900 dark:text-white transition-colors">
                 Worker Dashboard
               </h1>
@@ -158,7 +163,6 @@ const WorkerDashboard = () => {
               </p>
             </div>
           </div>
-        </div>
         <div className="relative z-10 flex items-center gap-3">
           {/* Availability Toggle */}
           <Link
@@ -180,7 +184,7 @@ const WorkerDashboard = () => {
             {availability}
           </button>
           <button
-            onClick={() => { localStorage.removeItem('user'); navigate('/login'); }}
+            onClick={async () => { await logout(); navigate('/login', { replace: true }); }}
             className="text-sm font-medium text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 bg-red-50 dark:bg-red-950/30 hover:bg-red-100 dark:hover:bg-red-900/40 border border-red-100 dark:border-red-900/50 px-4 py-2 rounded-xl transition-all"
           >
             Logout

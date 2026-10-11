@@ -3,18 +3,18 @@ const router = express.Router();
 
 const noticeController = require('../controllers/noticeController');
 const { requireAdminIdentity } = require('../middleware/adminIdentity');
-const { upload } = require('../middleware/multer');
+const { upload, persistUploadedFiles } = require('../middleware/multer');
 
 /* ─── Admin Endpoints (require admin identity) ────────────────────────────── */
 
 // Create a notice (with optional attachments)
-router.post('/api/notices', requireAdminIdentity, upload.array('attachments', 5), noticeController.createNotice);
+router.post('/api/notices', requireAdminIdentity, upload.array('attachments', 5), persistUploadedFiles, noticeController.createNotice);
 
 // List all notices with read stats
 router.get('/api/notices/admin', requireAdminIdentity, noticeController.listAdminNotices);
 
 // Update a notice
-router.put('/api/notices/:id', requireAdminIdentity, upload.array('attachments', 5), noticeController.updateNotice);
+router.put('/api/notices/:id', requireAdminIdentity, upload.array('attachments', 5), persistUploadedFiles, noticeController.updateNotice);
 
 // Delete a notice
 router.delete('/api/notices/:id', requireAdminIdentity, noticeController.deleteNotice);

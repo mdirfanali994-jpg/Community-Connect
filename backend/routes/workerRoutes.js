@@ -15,6 +15,7 @@ const {
   updateWorkerAvailability,
   getWorkerAnalytics
 } = require('../controllers/workerController');
+const { persistUploadedFiles } = require('../middleware/multer');
 
 // Multer config for worker uploads
 const workerStorage = multer.diskStorage({
@@ -42,7 +43,7 @@ router.get('/api/workers/all', listAllWorkers);
 router.get('/api/workers', listWorkersForAssignment);
 
 // Public: worker self-registration
-router.post('/api/workers/register', upload.single('profilePhoto'), registerWorker);
+router.post('/api/workers/register', upload.single('profilePhoto'), persistUploadedFiles, registerWorker);
 
 // Admin: create worker
 router.post('/api/workers', createWorker);

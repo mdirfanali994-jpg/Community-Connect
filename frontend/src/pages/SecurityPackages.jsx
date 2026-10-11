@@ -237,7 +237,7 @@ const SecurityPackages = () => {
   const handleView = async (pkg) => {
     setSelected(pkg);
     try {
-      const res = await axios.get(`${API_BASE_URL}/packages/${pkg._id}/history`);
+      const res = await axios.get(`${API_BASE_URL}/packages/${pkg._id}/history?workerId=${workerId}`);
       if (res.data.success) {
         setHistory(res.data.history || []);
       }

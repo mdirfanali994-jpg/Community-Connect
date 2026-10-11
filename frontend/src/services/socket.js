@@ -13,18 +13,32 @@ export const getSocket = () => {
   return socketSingleton;
 };
 
+let _lastRole = null;
+let _lastCommunityId = null;
+let _joinHandlerInstalled = false;
+
 export const connectAsRole = (role, communityId) => {
   const socket = getSocket();
 
-  if (role) {
-    socket.emit('joinRole', { role });
-  }
+  _lastRole = role;
+  _lastCommunityId = communityId;
 
-  if (communityId) {
-    socket.emit('joinCommunity', { communityId: String(communityId), role });
-  }
+  const joinRooms = () => {
+    if (_lastRole) {
+      socket.emit('joinRole', { role: _lastRole });
+    }
+    if (_lastCommunityId) {
+      socket.emit('joinCommunity', { communityId: String(_lastCommunityId), role: _lastRole });
+    }
+  };
 
-  if (!socket.connected) {
+  if (socket.connected) {
+    joinRooms();
+  } else {
+    if (!_joinHandlerInstalled) {
+      socket.on('connect', joinRooms);
+      _joinHandlerInstalled = true;
+    }
     socket.connect();
   }
 

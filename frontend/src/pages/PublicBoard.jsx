@@ -1,12 +1,24 @@
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import axios from 'axios';
-import { CheckCircle, Clock, ShieldCheck } from 'lucide-react';
+import { CheckCircle, Clock, ShieldCheck, ArrowLeft } from 'lucide-react';
 import { API_BASE_URL } from '../config/api';
 
 const PublicBoard = () => {
   const [complaints, setComplaints] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [authUser, setAuthUser] = useState(null);
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const raw = localStorage.getItem('user');
+    if (raw) {
+      try {
+        const parsed = JSON.parse(raw);
+        setAuthUser(parsed);
+      } catch (_) {}
+    }
+  }, []);
 
   useEffect(() => {
     const fetchComplaints = async () => {
@@ -59,9 +71,26 @@ const PublicBoard = () => {
           <p className="text-gray-500 dark:text-gray-400 transition-colors">Public log of community issues and resolution tracking.</p>
         </div>
 
-        <Link to="/login" className="relative z-10 text-white dark:text-gray-950 font-bold bg-gradient-to-r from-primary to-cyan-500 dark:from-primary dark:to-cyan-400 hover:from-cyan-500 hover:to-primary dark:hover:from-cyan-400 dark:hover:to-primary px-6 py-2.5 rounded-xl transition-all shadow-md dark:shadow-lg shadow-primary/20 dark:shadow-primary/20 transform hover:-translate-y-0.5">
-          Go to Portal
-        </Link>
+        <div className="relative z-10 flex items-center gap-3">
+          {authUser && (
+            <button
+              onClick={() => {
+                if (authUser.role === 'admin') navigate('/admin/dashboard');
+                else if (authUser.role === 'worker') navigate('/worker/dashboard');
+                else navigate('/user/dashboard');
+              }}
+              className="flex items-center text-white dark:text-gray-950 font-bold bg-gradient-to-r from-primary to-cyan-500 dark:from-primary dark:to-cyan-400 hover:from-cyan-500 hover:to-primary dark:hover:from-cyan-400 dark:hover:to-primary px-6 py-2.5 rounded-xl transition-all shadow-md dark:shadow-lg shadow-primary/20 dark:shadow-primary/20 transform hover:-translate-y-0.5"
+            >
+              <ArrowLeft className="w-4 h-4 mr-2" />
+              Back to Dashboard
+            </button>
+          )}
+          {!authUser && (
+            <Link to="/login" className="text-white dark:text-gray-950 font-bold bg-gradient-to-r from-primary to-cyan-500 dark:from-primary dark:to-cyan-400 hover:from-cyan-500 hover:to-primary dark:hover:from-cyan-400 dark:hover:to-primary px-6 py-2.5 rounded-xl transition-all shadow-md dark:shadow-lg shadow-primary/20 dark:shadow-primary/20 transform hover:-translate-y-0.5">
+              Go to Portal
+            </Link>
+          )}
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">

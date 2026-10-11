@@ -17,6 +17,7 @@ const {
   getComplaintTimeline,
   rateWorker
 } = require('../controllers/workerAssignmentController');
+const { persistUploadedFiles } = require('../middleware/multer');
 
 // Multer config for completion uploads
 const completionStorage = multer.diskStorage({
@@ -53,6 +54,7 @@ router.put(
     { name: 'completionPhotos', maxCount: 5 },
     { name: 'completionVideo', maxCount: 1 }
   ]),
+  persistUploadedFiles,
   completeComplaint
 );
 

@@ -76,7 +76,7 @@ const ResidentPackages = () => {
       if (res.data.success) {
         setSelected(res.data.package);
       }
-      const histRes = await axios.get(`${API_BASE_URL}/packages/${pkg._id}/history`);
+      const histRes = await axios.get(`${API_BASE_URL}/packages/${pkg._id}/history?userId=${user.id}`);
       if (histRes.data.success) setHistory(histRes.data.history || []);
     } catch (err) {
       console.error('view error:', err);

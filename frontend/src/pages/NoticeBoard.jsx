@@ -55,7 +55,13 @@ const NoticeBoard = () => {
     socket.on('notice:new', () => fetchNotices(uid));
     socket.on('notice:updated', () => fetchNotices(uid));
     socket.on('notice:deleted', () => fetchNotices(uid));
+
+    const pollInterval = setInterval(() => {
+      fetchNotices(uid);
+    }, 30000);
+
     return () => {
+      clearInterval(pollInterval);
       socket.off('notice:new');
       socket.off('notice:updated');
       socket.off('notice:deleted');

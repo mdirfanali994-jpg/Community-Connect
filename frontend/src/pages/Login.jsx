@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { LogIn, User, Lock } from 'lucide-react';
 import { API_BASE_URL } from '../config/api';
+import { useAuth } from '../context/AuthContext';
 
 const Login = () => {
   const [email, setEmail] = useState('');
@@ -10,6 +11,7 @@ const Login = () => {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
+  const { login } = useAuth();
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -19,17 +21,17 @@ const Login = () => {
     try {
       const res = await axios.post(`${API_BASE_URL}/login`, { email, password });
       if (res.data.success) {
-        localStorage.setItem('user', JSON.stringify(res.data.user));
+        login(res.data.user, res.data.token);
         
         switch (res.data.user.role) {
           case 'admin':
-            navigate('/admin/dashboard');
+            navigate('/admin/dashboard', { replace: true });
             break;
           case 'worker':
-            navigate('/worker/dashboard');
+            navigate('/worker/dashboard', { replace: true });
             break;
           default:
-            navigate('/user/dashboard');
+            navigate('/user/dashboard', { replace: true });
         }
       }
     } catch (err) {
@@ -57,8 +59,12 @@ const Login = () => {
         <div className="absolute -top-20 -right-20 w-40 h-40 bg-primary/10 dark:bg-primary/20 rounded-full blur-[50px] transition-all duration-700 group-hover:bg-primary/20 dark:group-hover:bg-primary/30"></div>
         
         <div className="text-center mb-8 relative z-10">
-          <div className="w-14 h-14 bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-900 border border-gray-200 dark:border-gray-700 rounded-2xl flex items-center justify-center mx-auto mb-5 shadow-sm dark:shadow-lg transition-colors">
-            <LogIn className="w-6 h-6 text-primary" />
+          <div className="flex justify-center mb-5">
+            <img
+              src="/assets/community-connect-logo.png"
+              alt="Community Connect"
+              className="h-12 sm:h-14 w-auto object-contain transition-transform hover:scale-[1.02] drop-shadow-sm"
+            />
           </div>
           <h2 className="text-3xl font-bold text-gray-900 dark:text-white tracking-tight">Welcome Back</h2>
           <p className="text-gray-500 dark:text-gray-400 mt-2 text-sm">Sign in to manage community complaints</p>

@@ -41,15 +41,24 @@ const OnboardingLanding = () => {
 
   return (
     <div className="space-y-6 animate-fade-in transition-colors duration-300">
-      <div className="bg-white/80 dark:bg-gray-900/60 backdrop-blur-xl p-6 rounded-3xl shadow-sm border border-gray-200 dark:border-gray-800 relative overflow-hidden">
+      <div className="bg-white/80 dark:bg-gray-900/60 backdrop-blur-xl p-6 sm:p-8 rounded-3xl shadow-sm border border-gray-200 dark:border-gray-800 relative overflow-hidden">
         <div className="absolute -top-24 -left-24 w-64 h-64 bg-primary/10 dark:bg-primary/20 rounded-full blur-[70px] transition-all" />
-        <div className="relative z-10">
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white tracking-tight transition-colors">
-            Community Connect
-          </h1>
-          <p className="text-gray-500 dark:text-gray-400 mt-2 transition-colors">
-            Create or join your society to start tracking and resolving complaints.
-          </p>
+        <div className="relative z-10 flex flex-col sm:flex-row items-start sm:items-center gap-5">
+          <div className="h-12 sm:h-14 shrink-0 flex items-center">
+            <img
+              src="/assets/community-connect-logo.png"
+              alt="Community Connect"
+              className="h-10 sm:h-12 w-auto object-contain"
+            />
+          </div>
+          <div className="sm:border-l sm:border-gray-200 sm:dark:border-gray-800 sm:pl-5">
+            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white tracking-tight transition-colors">
+              Community Connect
+            </h1>
+            <p className="text-gray-500 dark:text-gray-400 mt-1 transition-colors">
+              Create or join your society to start tracking and resolving complaints.
+            </p>
+          </div>
         </div>
       </div>
 

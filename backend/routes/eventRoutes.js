@@ -3,18 +3,18 @@ const router = express.Router();
 
 const eventController = require('../controllers/eventController');
 const { requireAdminIdentity } = require('../middleware/adminIdentity');
-const { upload } = require('../middleware/multer');
+const { upload, persistUploadedFiles } = require('../middleware/multer');
 
 /* ─── Admin Endpoints (require admin identity) ────────────────────────────── */
 
 // Create event (banner/image upload)
-router.post('/api/events', requireAdminIdentity, upload.fields([{ name: 'banner', maxCount: 1 }, { name: 'image', maxCount: 1 }]), eventController.createEvent);
+router.post('/api/events', requireAdminIdentity, upload.fields([{ name: 'banner', maxCount: 1 }, { name: 'image', maxCount: 1 }]), persistUploadedFiles, eventController.createEvent);
 
 // List events with stats
 router.get('/api/events/admin', requireAdminIdentity, eventController.listAdminEvents);
 
 // Update event
-router.put('/api/events/:id', requireAdminIdentity, upload.fields([{ name: 'banner', maxCount: 1 }, { name: 'image', maxCount: 1 }]), eventController.updateEvent);
+router.put('/api/events/:id', requireAdminIdentity, upload.fields([{ name: 'banner', maxCount: 1 }, { name: 'image', maxCount: 1 }]), persistUploadedFiles, eventController.updateEvent);
 
 // Delete event
 router.delete('/api/events/:id', requireAdminIdentity, eventController.deleteEvent);

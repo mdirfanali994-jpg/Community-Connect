@@ -3,7 +3,7 @@ const router = express.Router();
 
 const packageController = require('../controllers/packageController');
 const { requireAdminIdentity } = require('../middleware/adminIdentity');
-const { upload } = require('../middleware/multer');
+const { upload, persistUploadedFiles } = require('../middleware/multer');
 
 /* ─── Security Endpoints (identity derived from workerId) ─────────────────── */
 
@@ -11,7 +11,7 @@ const { upload } = require('../middleware/multer');
 router.get('/api/packages/residents/search', packageController.searchResidents);
 
 // Register / receive a package (photo upload supported)
-router.post('/api/packages/register', upload.single('photo'), packageController.registerPackage);
+router.post('/api/packages/register', upload.single('photo'), persistUploadedFiles, packageController.registerPackage);
 
 // Security package list (today / pending pickup / history / search)
 router.get('/api/packages/security', packageController.getSecurityPackages);

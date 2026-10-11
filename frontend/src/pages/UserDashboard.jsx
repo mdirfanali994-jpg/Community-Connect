@@ -12,6 +12,7 @@ import markerIcon2x from 'leaflet/dist/images/marker-icon-2x.png';
 import markerIcon from 'leaflet/dist/images/marker-icon.png';
 import markerShadow from 'leaflet/dist/images/marker-shadow.png';
 import { API_BASE_URL } from '../config/api';
+import { useAuth } from '../context/AuthContext';
 
 
 delete L.Icon.Default.prototype._getIconUrl;
@@ -34,18 +35,30 @@ function LocationSelector({ location, setLocation }) {
 
 const StatusTimelineView = ({ complaint }) => {
   const statusFlow = [
-    'Submitted', 'Verified', 'Assigned', 'Accepted', 'Started', 'Work In Progress', 'Completed', 'Resident Approved'
+    'Submitted', 'Verified', 'Assigned', 'Accepted', 'Started', 'Work In Progress', 'Completed', 'Closed'
   ];
   const currentIndex = statusFlow.indexOf(complaint.status);
 
   if (!complaint.timeline) return null;
+
+  const timelineFieldMap = {
+    'Submitted': 'submitted',
+    'Verified': 'verified',
+    'Assigned': 'assigned',
+    'Accepted': 'accepted',
+    'Started': 'started',
+    'Work In Progress': 'inProgress',
+    'Completed': 'completed',
+    'Closed': 'approved',
+  };
 
   return (
     <div className="mt-4 space-y-3">
       <h4 className="text-sm font-semibold text-gray-900 dark:text-white">Status Timeline</h4>
       <div className="relative pl-6 space-y-3">
         {statusFlow.map((status, idx) => {
-          const timelineEntry = (complaint.timeline || []).find(t => t.status === status);
+          const field = timelineFieldMap[status];
+          const timestamp = complaint.timeline?.[field] || null;
           const isActive = idx <= currentIndex;
           const isCurrent = idx === currentIndex;
           return (
@@ -60,10 +73,9 @@ const StatusTimelineView = ({ complaint }) => {
               }`} />
               <div className={`text-xs ${isActive ? 'text-gray-900 dark:text-gray-100' : 'text-gray-400 dark:text-gray-500'}`}>
                 <span className="font-medium">{status}</span>
-                {timelineEntry && (
+                {timestamp && (
                   <span className="ml-2 text-gray-500">
-                    {timelineEntry.updatedAt ? new Date(timelineEntry.updatedAt).toLocaleString() : ''}
-                    {timelineEntry.updatedBy ? ` - by ${timelineEntry.updatedBy}` : ''}
+                    {new Date(timestamp).toLocaleString()}
                   </span>
                 )}
               </div>
@@ -92,6 +104,7 @@ const UserDashboard = () => {
 
 
   const navigate = useNavigate();
+  const { logout } = useAuth();
 
 
   const recognitionRef = useRef(null);
@@ -319,7 +332,7 @@ const UserDashboard = () => {
   };
 
   const getProgressPercentage = (status) => {
-    const statuses = ['Submitted', 'Verified', 'Assigned', 'Accepted', 'Started', 'Work In Progress', 'Completed', 'Resident Approved'];
+    const statuses = ['Submitted', 'Verified', 'Assigned', 'Accepted', 'Started', 'Work In Progress', 'Completed', 'Closed'];
     const index = statuses.indexOf(status);
     return index === -1 ? 0 : (index / (statuses.length - 1)) * 100;
   };
@@ -331,17 +344,25 @@ const UserDashboard = () => {
       {/* Header Panel */}
       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center bg-white/80 dark:bg-gray-900/60 backdrop-blur-xl p-6 rounded-3xl shadow-sm border border-gray-200 dark:border-gray-800 relative overflow-hidden group transition-colors">
         <div className="absolute top-0 right-0 w-32 h-32 bg-primary/10 rounded-full blur-[40px] group-hover:bg-primary/20 transition-all"></div>
-        <div className="relative z-10 mb-4 sm:mb-0">
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white transition-colors">Resident Dashboard - {user?.communityName || 'Your Society'}</h1>
-          <p className="text-gray-500 dark:text-gray-400 mt-1 transition-colors">Welcome to {user?.communityName || 'Your Society'}, <span className="text-gray-700 dark:text-gray-200 font-medium">{user.name}</span> <span className="px-2 py-0.5 ml-2 bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-md text-xs font-mono text-primary transition-colors">FLAT {user.flat}</span></p>
-
+        <div className="relative z-10 mb-4 sm:mb-0 flex flex-col sm:flex-row sm:items-center gap-4">
+          <div className="h-10 sm:h-12 shrink-0 flex items-center">
+            <img
+              src="/assets/community-connect-logo.png"
+              alt="Community Connect"
+              className="h-9 sm:h-11 w-auto object-contain"
+            />
+          </div>
+          <div className="sm:border-l sm:border-gray-200 sm:dark:border-gray-800 sm:pl-4">
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-white transition-colors">Resident Dashboard - {user?.communityName || 'Your Society'}</h1>
+            <p className="text-gray-500 dark:text-gray-400 mt-1 transition-colors">Welcome to {user?.communityName || 'Your Society'}, <span className="text-gray-700 dark:text-gray-200 font-medium">{user.name}</span> <span className="px-2 py-0.5 ml-2 bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-md text-xs font-mono text-primary transition-colors">FLAT {user.flat}</span></p>
+          </div>
         </div>
         <div className="relative z-10 flex items-center space-x-4">
           <Link to="/public-board" className="text-primary hover:text-primary-dark hover:underline text-sm font-medium transition-colors">
             View Public Board
           </Link>
           <button 
-            onClick={() => { localStorage.removeItem('user'); navigate('/login'); }}
+            onClick={async () => { await logout(); navigate('/login', { replace: true }); }}
             className="text-sm font-medium text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 bg-red-50 dark:bg-red-950/30 hover:bg-red-100 dark:hover:bg-red-900/40 border border-red-100 dark:border-red-900/50 px-4 py-2 rounded-xl transition-all"
           >
             Logout
@@ -532,10 +553,11 @@ const UserDashboard = () => {
                   <span className={`px-3 py-1 rounded-full text-xs font-semibold border transition-colors ${
                     complaint.status === 'Completed' ? 'bg-green-50 dark:bg-green-900/30 text-green-600 dark:text-green-400 border-green-200 dark:border-green-800/50' :
                     complaint.status === 'Work In Progress' ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 border-blue-200 dark:border-blue-800/50' :
-                    complaint.status === 'Resident Approved' ? 'bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300 border-green-300 dark:border-green-700' :
+                    complaint.status === 'Closed' ? 'bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300 border-green-300 dark:border-green-700' :
+                    complaint.status === 'Reopened' ? 'bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 border-amber-200 dark:border-amber-800/50' :
                     'bg-yellow-50 dark:bg-yellow-900/30 text-yellow-600 dark:text-yellow-400 border-yellow-200 dark:border-yellow-800/50'
                   }`}>
-                    {complaint.status === 'Resident Approved' ? 'Closed' : complaint.status}
+                    {complaint.status}
                   </span>
                 </div>
 
@@ -543,7 +565,7 @@ const UserDashboard = () => {
                 <div className="mt-6 relative bg-gray-50 dark:bg-gray-950 p-4 rounded-2xl border border-gray-200/50 dark:border-gray-800/50 transition-colors">
                   <div className="overflow-hidden h-2 mb-4 text-xs flex rounded-full bg-gray-200 dark:bg-gray-800 transition-colors">
                     <div style={{ width: `${getProgressPercentage(complaint.status)}%` }} className={`shadow-none flex flex-col text-center whitespace-nowrap text-white justify-center transition-all duration-1000 ease-out ${
-                      complaint.status === 'Completed' || complaint.status === 'Resident Approved' ? 'bg-green-500' : 'bg-primary'
+                      complaint.status === 'Completed' || complaint.status === 'Closed' ? 'bg-green-500' : 'bg-primary'
                     }`}></div>
                   </div>
                   <div className="flex justify-between text-[11px] text-gray-500 font-medium uppercase tracking-wider transition-colors">
@@ -640,8 +662,8 @@ const UserDashboard = () => {
                   </div>
                 )}
 
-                {/* Resident Approved - Show rating option */}
-                {complaint.status === 'Resident Approved' && (
+                {/* Closed - Show rating option */}
+                {complaint.status === 'Closed' && (
                   <div className="mt-4 pt-4 border-t border-gray-100 dark:border-gray-800">
                     <button
                       onClick={() => setRatingModal({ open: true, complaintId: complaint.id })}
@@ -654,11 +676,11 @@ const UserDashboard = () => {
                 )}
 
                 {/* Timeline */}
-                {complaint.timeline && complaint.timeline.length > 0 && (
+                {complaint.timeline && Object.values(complaint.timeline).some(v => v) && (
                   <StatusTimelineView complaint={complaint} />
                 )}
                 
-                {(complaint.assignedWorker || complaint.adminRemarks) && complaint.status !== 'Completed' && complaint.status !== 'Resident Approved' && (
+                {(complaint.assignedWorker || complaint.adminRemarks) && complaint.status !== 'Completed' && complaint.status !== 'Closed' && (
                   <div className="mt-5 pt-4 border-t border-gray-100 dark:border-gray-800 text-sm grid grid-cols-1 sm:grid-cols-2 gap-4 transition-colors">
                     {complaint.assignedWorker && (
                       <div className="bg-gray-50 dark:bg-gray-950/50 p-3 rounded-xl border border-gray-200/50 dark:border-gray-800/50 transition-colors">

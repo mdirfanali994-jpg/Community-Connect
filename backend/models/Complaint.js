@@ -3,7 +3,8 @@ const mongoose = require('mongoose');
 const complaintSchema = new mongoose.Schema(
   {
     id: { type: String, required: true, unique: true, index: true },
-    userId: { type: Number, required: true, index: true },
+    userId: { type: Number, required: false, index: true },
+    residentId: { type: String, default: null, index: true },
     userName: { type: String, required: true },
     flatNumber: { type: String, required: true },
     text: { type: String, default: '' },
