@@ -6,6 +6,7 @@ const CommunityUser = require('../models/CommunityUser');
 const Worker = require('../models/Worker');
 const { VISITOR_TYPE_KEYS, isDeliveryType } = require('../constants/visitorTypes');
 const { professionToRole } = require('../constants/workerRoles');
+const { verifyGeofenceMembership } = require('../services/geofenceService');
 
 // Socket.io reference (set at runtime from server.js)
 let ioRef = null;
@@ -621,8 +622,33 @@ const markArrived = async (req, res) => {
       return res.status(403).json({ success: false, message: 'Forbidden' });
     }
 
+    const communityId = String(worker.communityId);
+
+    // Enforce geofencing verification
+    const locationReading = req.body.location || {
+      lat: req.body.lat,
+      lng: req.body.lng,
+      accuracy: req.body.accuracy,
+      timestamp: req.body.timestamp,
+    };
+
+    const geofenceResult = await verifyGeofenceMembership(communityId, locationReading);
+    if (!geofenceResult.success || !geofenceResult.inside) {
+      return res.status(403).json({
+        success: false,
+        geofenceVerified: false,
+        errorCode: geofenceResult.errorCode || 'OUTSIDE_BOUNDARY',
+        message: geofenceResult.message || 'Geofence check failed: Location outside authorized boundary',
+        details: {
+          distanceMeters: geofenceResult.distanceMeters,
+          radiusMeters: geofenceResult.radiusMeters,
+          boundaryMode: geofenceResult.boundaryMode,
+        },
+      });
+    }
+
     const visitor = await Visitor.findOneAndUpdate(
-      { _id: id, communityId: String(worker.communityId), status: 'scheduled' },
+      { _id: id, communityId, status: 'scheduled' },
       {
         status: 'arrived',
         arrivedAt: new Date(),
@@ -638,11 +664,16 @@ const markArrived = async (req, res) => {
 
     await logVisitorEvent({
       visitorId: id,
-      communityId: String(worker.communityId),
+      communityId,
       event: 'arrived',
       actor: worker.name,
       actorRole: 'security',
-      notes: 'Visitor arrived at gate',
+      notes: 'Visitor arrived at gate (geofence verified)',
+      metadata: {
+        geofenceVerified: true,
+        accuracyMeters: locationReading.accuracy,
+        distanceMeters: geofenceResult.distanceMeters,
+      },
     });
 
     // Notify resident
@@ -699,6 +730,30 @@ const markEntered = async (req, res) => {
     }
 
     const communityId = String(worker.communityId);
+
+    // Enforce geofencing verification
+    const locationReading = req.body.location || {
+      lat: req.body.lat,
+      lng: req.body.lng,
+      accuracy: req.body.accuracy,
+      timestamp: req.body.timestamp,
+    };
+
+    const geofenceResult = await verifyGeofenceMembership(communityId, locationReading);
+    if (!geofenceResult.success || !geofenceResult.inside) {
+      return res.status(403).json({
+        success: false,
+        geofenceVerified: false,
+        errorCode: geofenceResult.errorCode || 'OUTSIDE_BOUNDARY',
+        message: geofenceResult.message || 'Geofence check failed: Location outside authorized boundary',
+        details: {
+          distanceMeters: geofenceResult.distanceMeters,
+          radiusMeters: geofenceResult.radiusMeters,
+          boundaryMode: geofenceResult.boundaryMode,
+        },
+      });
+    }
+
     const query = { _id: id, communityId, status: { $in: ['scheduled', 'arrived'] } };
 
     // If OTP provided, verify it
@@ -724,7 +779,7 @@ const markEntered = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Visitor not found, already entered, or invalid OTP' });
     }
 
-    const eventNote = otp ? 'OTP verified, visitor entered' : 'Visitor entered (manual)';
+    const eventNote = otp ? 'OTP verified, visitor entered (geofence verified)' : 'Visitor entered (manual, geofence verified)';
     await logVisitorEvent({
       visitorId: id,
       communityId,
@@ -732,7 +787,12 @@ const markEntered = async (req, res) => {
       actor: worker.name,
       actorRole: 'security',
       notes: eventNote,
-      metadata: otp ? { verificationMethod: 'otp' } : { verificationMethod: 'manual' },
+      metadata: {
+        verificationMethod: otp ? 'otp' : 'manual',
+        geofenceVerified: true,
+        accuracyMeters: locationReading.accuracy,
+        distanceMeters: geofenceResult.distanceMeters,
+      },
     });
 
     if (otp) {
@@ -1385,6 +1445,29 @@ const allowEntryAfterScan = async (req, res) => {
     const communityId = String(worker.communityId);
     const method = approvalMethod || 'qr';
 
+    // Enforce geofencing verification
+    const locationReading = req.body.location || {
+      lat: req.body.lat,
+      lng: req.body.lng,
+      accuracy: req.body.accuracy,
+      timestamp: req.body.timestamp,
+    };
+
+    const geofenceResult = await verifyGeofenceMembership(communityId, locationReading);
+    if (!geofenceResult.success || !geofenceResult.inside) {
+      return res.status(403).json({
+        success: false,
+        geofenceVerified: false,
+        errorCode: geofenceResult.errorCode || 'OUTSIDE_BOUNDARY',
+        message: geofenceResult.message || 'Geofence check failed: Location outside authorized boundary',
+        details: {
+          distanceMeters: geofenceResult.distanceMeters,
+          radiusMeters: geofenceResult.radiusMeters,
+          boundaryMode: geofenceResult.boundaryMode,
+        },
+      });
+    }
+
     const visitor = await Visitor.findOneAndUpdate(
       { _id: id, communityId, status: 'scheduled' },
       {
@@ -1407,8 +1490,14 @@ const allowEntryAfterScan = async (req, res) => {
       event: 'qr_scanned_entry',
       actor: worker.name,
       actorRole: 'security',
-      notes: `Entry approved via ${method} scan`,
-      metadata: { approvalMethod: method, guardId: workerId },
+      notes: `Entry approved via ${method} scan (geofence verified)`,
+      metadata: {
+        approvalMethod: method,
+        guardId: workerId,
+        geofenceVerified: true,
+        accuracyMeters: locationReading.accuracy,
+        distanceMeters: geofenceResult.distanceMeters,
+      },
     });
 
     // Also mark as entered for seamless flow (since QR is already verified)

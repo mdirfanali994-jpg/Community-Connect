@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { API_BASE_URL } from '../config/api';
 import { VISITOR_TYPES, VISITOR_STATUS_COLORS, VISITOR_STATUS_LABELS } from '../components/visitor/visitorConstants';
+import BoundaryConfigMap from '../components/community/BoundaryConfigMap';
 
 const AdminVisitors = () => {
   const [loading, setLoading] = useState(true);
@@ -26,9 +27,12 @@ const AdminVisitors = () => {
     const raw = localStorage.getItem('user');
     if (!raw) return null;
     const user = JSON.parse(raw);
+    const adminId = user.id || user._id;
+    const commId = user.communityId || user.communityID || user.community_id;
+    if (!adminId || !commId) return null;
     return {
-      'x-admin-id': String(user.id),
-      'x-community-id': String(user.communityId),
+      'x-admin-id': String(adminId),
+      'x-community-id': String(commId),
     };
   }, []);
 
@@ -253,6 +257,9 @@ const AdminVisitors = () => {
       {/* Settings Tab */}
       {activeTab === 'settings' && (
         <div className="space-y-6">
+          {/* Community Geofence Boundary Configuration */}
+          <BoundaryConfigMap getAdminHeaders={() => ({ headers: getHeaders(), error: null })} />
+
           <div className="bg-white/80 dark:bg-gray-900/60 backdrop-blur-xl rounded-3xl border border-gray-200 dark:border-gray-800 p-6">
             <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
               <Settings className="w-5 h-5 mr-2 text-primary" />

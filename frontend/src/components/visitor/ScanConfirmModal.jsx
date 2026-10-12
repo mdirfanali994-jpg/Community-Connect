@@ -247,21 +247,31 @@ const ScanConfirmModal = ({
         </div>
 
         {/* Action Buttons */}
-        <div className="p-4 border-t border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-950/50 space-y-2">
+        <div className="p-4 border-t border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-950/50 space-y-3">
           {isEntry && !showRejectForm && (
-            <div className="flex gap-3">
-              <button
-                onClick={onAllowEntry}
-                disabled={loading}
-                className="flex-1 flex items-center justify-center py-3 bg-green-600 hover:bg-green-700 text-white rounded-xl text-sm font-semibold transition-all disabled:opacity-50"
-              >
-                {loading ? (
-                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
-                ) : (
-                  <CheckCircle className="w-4 h-4 mr-2" />
-                )}
-                Allow Entry
-              </button>
+            <>
+              <div className="flex items-center gap-2 px-3 py-2 bg-blue-50 dark:bg-blue-950/30 rounded-xl border border-blue-200 dark:border-blue-900 text-xs text-blue-700 dark:text-blue-300">
+                <Shield className="w-4 h-4 shrink-0 text-blue-600 dark:text-blue-400" />
+                <span>GPS Geofencing Active: Verifying physical presence at the community gate.</span>
+              </div>
+              <div className="flex gap-3">
+                <button
+                  onClick={onAllowEntry}
+                  disabled={loading}
+                  className="flex-1 flex items-center justify-center py-3 bg-green-600 hover:bg-green-700 text-white rounded-xl text-sm font-semibold transition-all disabled:opacity-50"
+                >
+                  {loading ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
+                      Verifying Location...
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle className="w-4 h-4 mr-2" />
+                      Allow Entry
+                    </>
+                  )}
+                </button>
               <button
                 onClick={() => setShowRejectForm(true)}
                 disabled={loading}
@@ -271,7 +281,8 @@ const ScanConfirmModal = ({
                 Reject
               </button>
             </div>
-          )}
+          </>
+        )}
 
           {isExit && !showRejectForm && (
             <div className="flex gap-3">

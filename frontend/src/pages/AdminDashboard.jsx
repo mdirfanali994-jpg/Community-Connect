@@ -6,6 +6,7 @@ import NotificationBell from '../components/NotificationBell';
 import { connectAsRole } from '../services/socket';
 import { API_BASE_URL } from '../config/api';
 import { useAuth } from '../context/AuthContext';
+import BoundaryConfigMap from '../components/community/BoundaryConfigMap';
 
 
 
@@ -996,6 +997,9 @@ const AdminDashboard = () => {
           </div>
         )}
       </div>
+
+      {/* Community Geofence Boundary Configuration */}
+      <BoundaryConfigMap getAdminHeaders={getAdminHeaders} />
 
       {/* System Configuration */}
       <div className="bg-white/80 dark:bg-gray-900/60 backdrop-blur-xl rounded-3xl shadow-sm border border-gray-200 dark:border-gray-800 overflow-hidden transition-colors p-6">

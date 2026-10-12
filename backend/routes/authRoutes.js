@@ -43,7 +43,7 @@ router.get('/api/auth/me', async (req, res) => {
     const { id, role } = session;
 
     // Check MongoDB if connected
-    if (mongoose.connection && mongoose.connection.readyState === 1) {
+    if (mongoose.connection && mongoose.connection.readyState === 1 && mongoose.Types.ObjectId.isValid(id)) {
       if (role === 'worker') {
         const workerDb = await Worker.findById(id).lean();
         if (workerDb) {

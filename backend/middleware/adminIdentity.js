@@ -1,4 +1,5 @@
 const CommunityUser = require('../models/CommunityUser');
+const { verifySession } = require('../services/authService');
 
 function normalizeHeaderValue(v) {
   if (v === undefined || v === null) return null;
@@ -7,25 +8,35 @@ function normalizeHeaderValue(v) {
 }
 
 function isValidObjectId(v) {
-  return !!v && /^[a-fA-F0-9]{24}$/.test(v);
+  return !!v && /^[a-fA-F0-9]{24}$/.test(String(v));
 }
 
 /**
- * Temporary admin identity middleware (pre-JWT).
- * - Expects headers:
+ * Admin identity middleware.
+ * - Supports headers:
  *   - x-admin-id: CommunityUser _id of the admin
  *   - x-community-id: Community _id the admin manages
+ * - Also supports Authorization: Bearer <sessionToken>
  * - Validates admin exists, role=admin, and communityId matches.
  * - Attaches:
  *   req.adminIdentity = { adminUserId, communityId }
- *
- * Future JWT migration:
- * - Replace this middleware only; keep controller business logic unchanged.
  */
 async function requireAdminIdentity(req, res, next) {
   try {
-    const adminId = normalizeHeaderValue(req.headers['x-admin-id']);
-    const communityId = normalizeHeaderValue(req.headers['x-community-id']);
+    let adminId = normalizeHeaderValue(req.headers['x-admin-id']);
+    let communityId = normalizeHeaderValue(req.headers['x-community-id']);
+
+    // Fallback to Bearer token if headers not directly supplied
+    if ((!adminId || !communityId) && req.headers['authorization']) {
+      const authHeader = req.headers['authorization'];
+      if (typeof authHeader === 'string' && authHeader.startsWith('Bearer ')) {
+        const session = verifySession(authHeader.slice(7).trim());
+        if (session && session.role === 'admin') {
+          adminId = adminId || normalizeHeaderValue(session.id);
+          communityId = communityId || normalizeHeaderValue(session.communityId);
+        }
+      }
+    }
 
     if (!adminId || !communityId) {
       return res.status(403).json({

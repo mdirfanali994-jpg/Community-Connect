@@ -10,6 +10,7 @@ import { API_BASE_URL } from '../config/api';
 import { VISITOR_TYPES, VISITOR_STATUS_COLORS, VISITOR_STATUS_LABELS, isDelivery } from '../components/visitor/visitorConstants';
 import QRScanner from '../components/visitor/QRScanner';
 import ScanConfirmModal from '../components/visitor/ScanConfirmModal';
+import { getCurrentLocation } from '../services/geolocationService';
 
 const VISITOR_STATS_CARDS = [
   { key: 'expected', label: 'Expected Today', icon: Calendar, color: 'text-blue-600', bg: 'bg-blue-50 dark:bg-blue-900/10', border: 'border-blue-200 dark:border-blue-800' },
@@ -99,21 +100,33 @@ const navigate = useNavigate();
     }
   };
 
-const handleAction = async (visitorId, action) => {
+  const handleAction = async (visitorId, action) => {
     setActionLoading(visitorId);
     try {
+      let location = null;
+      // Restricted gate actions requiring physical GPS presence
+      if (action === 'arrived' || action === 'enter') {
+        try {
+          location = await getCurrentLocation({ enableHighAccuracy: true });
+        } catch (locErr) {
+          showFlash(`📍 Location Required: ${locErr.message || 'GPS location required for gate check-in'}`, 'error');
+          setActionLoading(null);
+          return;
+        }
+      }
+
       let res;
       switch (action) {
         case 'arrived':
-          res = await axios.put(`${API_BASE_URL}/visitors/${visitorId}/arrived`, { workerId });
+          res = await axios.put(`${API_BASE_URL}/visitors/${visitorId}/arrived`, { workerId, location });
           break;
         case 'enter':
-          res = await axios.put(`${API_BASE_URL}/visitors/${visitorId}/enter`, { workerId });
+          res = await axios.put(`${API_BASE_URL}/visitors/${visitorId}/enter`, { workerId, location });
           break;
         case 'exit':
           res = await axios.put(`${API_BASE_URL}/visitors/${visitorId}/exit`, { workerId });
           break;
-case 'reject': {
+        case 'reject': {
           const reason = prompt('Rejection reason (optional):');
           res = await axios.put(`${API_BASE_URL}/visitors/${visitorId}/reject`, { workerId, reason: reason || '' });
           break;
@@ -163,12 +176,23 @@ case 'reject': {
     if (!scannedVisitor?._id) return;
     setScanLoading(true);
     try {
+      // Acquire GPS location for gate entry verification
+      let location = null;
+      try {
+        location = await getCurrentLocation({ enableHighAccuracy: true });
+      } catch (locErr) {
+        showFlash(`📍 Location Required: ${locErr.message || 'GPS location required for gate check-in'}`, 'error');
+        setScanLoading(false);
+        return;
+      }
+
       const res = await axios.put(`${API_BASE_URL}/visitors/${scannedVisitor._id}/allow-entry`, {
         workerId,
         approvalMethod: 'qr',
+        location,
       });
       if (res.data.success) {
-        showFlash(`✅ ${scannedVisitor.visitorName} has been granted entry`);
+        showFlash(`✅ ${scannedVisitor.visitorName} has been granted entry (Geofence verified)`);
         setScannedVisitor(null);
         setScanAction(null);
         setScanMessage('');

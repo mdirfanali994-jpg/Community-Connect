@@ -65,7 +65,7 @@ const dotenv = require('dotenv');
 const Complaint = require('./models/Complaint');
 
 
-dotenv.config();
+dotenv.config({ path: path.resolve(__dirname, '.env') });
 
 const notificationRoutes = require('./routes/notificationRoutes');
 const { createComplaintSubmittedNotification } = require('./services/notificationService');
@@ -80,6 +80,7 @@ const packageRoutes = require('./routes/packageRoutes');
 const noticeRoutes = require('./routes/noticeRoutes');
 const eventRoutes = require('./routes/eventRoutes');
 const pollRoutes = require('./routes/pollRoutes');
+const boundaryRoutes = require('./routes/boundaryRoutes');
 
 // Pass Socket.IO and notification service to controllers
 const { setIO: setWorkerIO, setNotificationService } = require('./controllers/workerController');
@@ -129,6 +130,9 @@ app.use(eventRoutes);
 // Community poll routes (Phase 5, Module 4)
 // Routes define full /api/polls paths internally.
 app.use(pollRoutes);
+
+// Community geofence boundary routes
+app.use(boundaryRoutes);
 
 // Society onboarding routes (new)
 // IMPORTANT: onboardingRoutes already defines paths like /create-community and /join-community.
